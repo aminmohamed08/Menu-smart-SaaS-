@@ -27,6 +27,14 @@ html[lang="ar"] body { font-family: 'Cairo','Plus Jakarta Sans',sans-serif; }
 </head>
 <body class="w-full min-h-screen bg-slate-900 text-slate-800 font-sans antialiased sm:flex sm:justify-center sm:items-center sm:p-4">
 
+<!-- Fatal error overlay (missing/unknown restaurant, invalid QR) -->
+<div id="fatalError" class="hidden fixed inset-0 z-[60] bg-slate-900 flex items-center justify-center p-6 text-center text-white">
+  <div class="space-y-3 max-w-xs">
+    <div class="w-16 h-16 mx-auto rounded-full bg-slate-800 flex items-center justify-center text-amber-400 text-2xl"><i class="fa-solid fa-triangle-exclamation"></i></div>
+    <p id="fatalMsg" class="font-bold text-sm leading-relaxed"></p>
+  </div>
+</div>
+
 <!-- App frame: full-width page on phones (sticky header + chips); emulator frame from sm: up -->
 <div class="app-frame w-full min-h-screen sm:min-h-0 sm:max-w-md sm:h-[min(900px,calc(100dvh-2rem))] bg-slate-50 sm:rounded-[38px] sm:shadow-2xl flex flex-col relative sm:overflow-hidden sm:border-4 border-slate-800/20">
 
@@ -35,14 +43,16 @@ html[lang="ar"] body { font-family: 'Cairo','Plus Jakarta Sans',sans-serif; }
   <header class="bg-slate-900 text-white px-4 sm:px-5 pt-[max(1rem,env(safe-area-inset-top))] pb-4 shadow-md">
     <div class="flex justify-between items-center mb-3 gap-2">
       <div class="flex items-center space-x-3 rtl:space-x-reverse min-w-0">
-        <div class="w-10 h-10 shrink-0 rounded-2xl bg-gradient-to-tr from-brand-600 to-amber-500 flex items-center justify-center text-white shadow-lg text-xl">
+        <div class="w-10 h-10 shrink-0 rounded-2xl bg-gradient-to-tr from-brand-600 to-amber-500 flex items-center justify-center text-white shadow-lg text-xl overflow-hidden">
+          <img id="brandLogo" alt="" class="hidden w-full h-full object-cover">
           <i id="brandIcon" class="fa-solid fa-utensils"></i>
         </div>
         <div class="min-w-0">
-          <h1 id="brandName" class="text-lg font-bold tracking-tight leading-tight truncate">--</h1>
+          <h1 id="brandName" class="text-lg font-bold tracking-tight leading-tight truncate">…</h1>
           <p class="text-xs text-slate-400 flex items-center gap-1 truncate">
             <span class="w-2 h-2 shrink-0 rounded-full bg-emerald-500 inline-block animate-pulse"></span>
-            <span data-i18n="tableLabel">Table</span> <span id="currentTableDisplay" class="font-bold text-amber-400">07</span>
+            <span data-i18n="tableLabel">Table</span> <span id="currentTableDisplay" class="font-bold text-amber-400">--</span>
+            <i id="tableLockIcon" class="hidden fa-solid fa-lock text-[9px] text-slate-500"></i>
           </p>
         </div>
       </div>
@@ -158,12 +168,18 @@ html[lang="ar"] body { font-family: 'Cairo','Plus Jakarta Sans',sans-serif; }
       <button onclick="closeModal('cartModal')" class="w-8 h-8 bg-slate-800 hover:bg-slate-700 rounded-full flex items-center justify-center text-slate-300"><i class="fa-solid fa-xmark text-sm"></i></button>
     </div>
     <div class="p-4 overflow-y-auto space-y-4 flex-1">
-      <div class="bg-amber-50 rounded-2xl p-3 border border-amber-200/80 flex items-center justify-between">
+      <!-- Table: fixed indicator when it comes from the QR code, dropdown only when no ?table= is present -->
+      <div class="bg-amber-50 rounded-2xl p-3 border border-amber-200/80 flex items-center justify-between gap-3">
         <div>
           <div class="text-xs font-bold text-amber-900" data-i18n="selectedTable"></div>
-          <div class="text-xs text-amber-700" data-i18n="qrSub"></div>
+          <div id="qrSubText" class="hidden text-xs text-amber-700" data-i18n="qrSub"></div>
         </div>
-        <div class="flex items-center space-x-1 rtl:space-x-reverse">
+        <div id="tableFixedBox" class="hidden flex items-center gap-1.5 bg-white border border-amber-300 rounded-xl px-3 py-1">
+          <i class="fa-solid fa-lock text-[10px] text-amber-600"></i>
+          <span class="text-xs font-bold text-slate-600" data-i18n="tableLabel"></span>
+          <span id="cartTableFixed" class="font-extrabold text-slate-900 text-sm"></span>
+        </div>
+        <div id="tableSelectBox" class="hidden flex items-center space-x-1 rtl:space-x-reverse">
           <span class="text-xs font-bold text-slate-600" data-i18n="tableLabel"></span>
           <select id="cartTableSelect" onchange="updateTableNumber(this.value)" class="bg-white font-bold text-slate-900 border border-amber-300 rounded-xl px-2 py-1 text-sm focus:outline-none"></select>
         </div>
@@ -196,7 +212,7 @@ html[lang="ar"] body { font-family: 'Cairo','Plus Jakarta Sans',sans-serif; }
       <i id="statusTrackerMainIcon" class="fa-solid fa-paper-plane"></i>
     </div>
     <div>
-      <span class="text-xs font-bold uppercase tracking-widest text-slate-400"><span data-i18n="liveStatus"></span> • <span data-i18n="tableLabel"></span> <span id="statusModalTable">07</span></span>
+      <span class="text-xs font-bold uppercase tracking-widest text-slate-400"><span data-i18n="liveStatus"></span> • <span data-i18n="tableLabel"></span> <span id="statusModalTable">--</span></span>
       <h3 id="statusModalTitle" class="text-xl font-extrabold text-slate-900 mt-1">--</h3>
       <p id="statusModalSubtext" class="text-xs text-slate-500 mt-1"></p>
     </div>
@@ -207,18 +223,29 @@ html[lang="ar"] body { font-family: 'Cairo','Plus Jakarta Sans',sans-serif; }
 <script type="module">
 /* =====================================================================
    STORE DATA — everything an admin panel / Firebase would manage.
-   To connect a backend later, call applyStoreData({restaurant, promo,
-   categories, products}) with the fetched data (see initFirebase below,
-   which already listens to the optional "menu" node).
+   Restaurant name, logo and number of tables are loaded from Firebase
+   (restaurants/{resto}/name, /logo, /tablesCount). Nothing is hardcoded.
    Bilingual fields use { fr, ar }. "oldPrice" (optional) shows a
    strikethrough price next to the current one.
    ===================================================================== */
 let restaurant = {
-  name: "L'Oasis Gourmand",
-  logoIcon: "fa-utensils",           // any Font Awesome solid icon
-  tables: ["01", "02", "05", "07", "12", "15"],
-  defaultTable: "07"
+  name: "",                          // filled from Firebase
+  logo: "",                          // filled from Firebase (URL or base64 data URI)
+  logoIcon: "fa-utensils",           // fallback icon when the restaurant has no logo
+  tables: []                         // generated from tablesCount (only used when no ?table= in URL)
 };
+
+/* ---------- URL parameters (QR code: index.html?resto={id}&table={n}) ---------- */
+const urlParams = new URLSearchParams(window.location.search);
+
+/* Restaurant id: "resto" (new QR links); "restaurant_id" kept as backward-compatible fallback */
+const RID = (urlParams.get('resto') || urlParams.get('restaurant_id') || '').trim().replace(/[.#$\[\]\/]/g, '_');
+
+/* Table number: only simple values are accepted (letters, digits, - and _) */
+const rawTableParam = urlParams.get('table');
+const TABLE_PARAM = /^[A-Za-z0-9_-]{1,10}$/.test((rawTableParam || '').trim()) ? rawTableParam.trim() : '';
+const tableInvalid = rawTableParam !== null && rawTableParam.trim() !== '' && !TABLE_PARAM;
+const tableLocked = !!TABLE_PARAM;   // table comes from the QR code -> customer cannot change it
 
 let promo = {
   tag:         { fr: "Spécialité du jour", ar: "طبق اليوم الخاص" },
@@ -294,7 +321,9 @@ const translations = {
     notesPlaceholder: "ex: Sans oignons, très épicé...", subtotal: "Sous-total", vat: "Service & TVA (10%)",
     totalPayable: "Total à payer", sendOrderBtn: "Envoyer la commande", liveStatus: "Statut en direct",
     closeReturn: "Fermer & Retour au menu", soldOut: "Épuisé", unavailable: "Indisponible",
-    noResults: "Aucun plat trouvé", cartEmpty: "Panier vide", offline: "Connexion indisponible"
+    noResults: "Aucun plat trouvé", cartEmpty: "Panier vide", offline: "Connexion indisponible",
+    chooseTable: "Choisissez votre table", restoNotFound: "Restaurant introuvable. Veuillez scanner à nouveau le code QR de votre table.",
+    invalidQr: "Code QR invalide. Veuillez scanner à nouveau le code QR de votre table.", loadError: "Impossible de charger le restaurant. Réessayez."
   },
   ar: {
     tableLabel: "مائدة", searchPlaceholder: "بحث عن أطباق، مشروبات...", activeOrder: "طلب نشط", viewBtn: "عرض",
@@ -304,7 +333,9 @@ const translations = {
     notesPlaceholder: "مثلاً: بدون بصل، حار جداً...", subtotal: "المجموع الفرعي", vat: "الخدمة والضريبة (10%)",
     totalPayable: "المجموع الكلي", sendOrderBtn: "إرسال الطلب للنادل", liveStatus: "الحالة الحالية",
     closeReturn: "إغلاق والرجوع للمينيو", soldOut: "نفذت الكمية", unavailable: "غير متوفر",
-    noResults: "لم يتم العثور على أطباق", cartEmpty: "السلة فارغة", offline: "الاتصال غير متوفر"
+    noResults: "لم يتم العثور على أطباق", cartEmpty: "السلة فارغة", offline: "الاتصال غير متوفر",
+    chooseTable: "اختر مائدتك", restoNotFound: "المطعم غير موجود. المرجو مسح رمز QR الخاص بمائدتك مرة أخرى.",
+    invalidQr: "رمز QR غير صالح. المرجو مسح رمز QR الخاص بمائدتك مرة أخرى.", loadError: "تعذر تحميل بيانات المطعم. حاول مرة أخرى."
   }
 };
 
@@ -322,8 +353,6 @@ orderStatuses.COMPLETED = orderStatuses.SERVED;
 
 /* ---------- Firebase (dynamic import so the UI works even if it fails) ---------- */
 let db, ref, set, push, onValue;
-/* Multi-tenant: ?restaurant_id=rest_123  (falls back to a default tenant) */
-const RID = (new URLSearchParams(location.search).get('restaurant_id') || 'default_restaurant').replace(/[.#$\[\]\/]/g, '_');
 const ORDER_KEY = 'activeOrderId:' + RID;
 const tenantRef = path => ref(db, `restaurants/${RID}/${path}`);
 
@@ -345,6 +374,24 @@ async function initFirebase() {
     ({ ref, set, push, onValue } = lib);
     db = lib.getDatabase(initializeApp(firebaseConfig));
 
+    // Restaurant identity: restaurants/{resto}/name, /logo, /tablesCount
+    onValue(tenantRef('name'), snap => {
+      if (!snap.exists()) { showFatal('restoNotFound'); return; }
+      restaurant.name = String(snap.val());
+      renderBrand();
+    }, err => { console.error(err); showFatal('loadError'); });
+
+    onValue(tenantRef('logo'), snap => {
+      restaurant.logo = snap.exists() ? String(snap.val()) : '';
+      renderBrand();
+    });
+
+    onValue(tenantRef('tablesCount'), snap => {
+      const n = parseInt(snap.val(), 10);
+      restaurant.tables = n > 0 ? Array.from({ length: n }, (_, i) => String(i + 1)) : [];
+      renderTableUI();
+    });
+
     // Tenant content: /restaurants/{id}/config ({restaurant, promo, categories}) and /restaurants/{id}/menu (products)
     onValue(tenantRef('config'), snap => { if (snap.exists()) applyStoreData(snap.val()); });
     onValue(tenantRef('menu'), snap => { if (snap.exists()) applyStoreData({ products: snap.val() }); });
@@ -355,13 +402,14 @@ async function initFirebase() {
     if (saved) trackOrder(saved);
   } catch (err) {
     console.error('Firebase failed to load:', err);
+    showFatal('loadError');
   }
 }
 
 /* ---------- State ---------- */
 let currentLang = 'fr', activeCategory = 'all', cart = [];
-let currentSelectedTable = restaurant.defaultTable;
-let currentModalItem = null, modalQty = 1, activeStatus = null;
+let currentSelectedTable = TABLE_PARAM;      // '' when there is no ?table= in the URL
+let currentModalItem = null, modalQty = 1, activeStatus = null, fatalKey = null;
 const $ = id => document.getElementById(id);
 const money = n => `${n.toFixed(2)} MAD`;
 
@@ -372,30 +420,70 @@ function priceBlock(item, size = 'text-sm sm:text-base') {
     (hasOld ? `<span class="text-xs text-gray-400 line-through mx-2">${money(item.oldPrice)}</span>` : '');
 }
 
+function showFatal(key) {
+  fatalKey = key;
+  $('fatalError').classList.remove('hidden');
+  $('fatalMsg').textContent = translations[currentLang][key];
+}
+
 window.addEventListener('DOMContentLoaded', () => {
-  const qTable = new URLSearchParams(location.search).get('table');   // e.g. index.html?table=12
-  if (qTable) {
-    currentSelectedTable = qTable;
-    if (!restaurant.tables.includes(qTable)) restaurant.tables.push(qTable);
-  }
   initChipScroller();
+  if (tableInvalid) showFatal('invalidQr');
+  else if (!RID) showFatal('restoNotFound');
   updateLanguageUI();
-  initFirebase();
+  if (!fatalKey) initFirebase();
 });
 
 /* ---------- Rendering ---------- */
+function renderBrand() {
+  const name = restaurant.name || '…';
+  $('brandName').textContent = name;
+  if (restaurant.name) document.title = restaurant.name;
+
+  const logo = $('brandLogo'), icon = $('brandIcon');
+  icon.className = `fa-solid ${restaurant.logoIcon}`;
+  if (restaurant.logo) {
+    logo.onerror = () => { logo.classList.add('hidden'); icon.classList.remove('hidden'); };
+    logo.src = restaurant.logo;
+    logo.alt = restaurant.name || '';
+    logo.classList.remove('hidden');
+    icon.classList.add('hidden');
+  } else {
+    logo.classList.add('hidden');
+    icon.classList.remove('hidden');
+  }
+}
+
+function renderTableUI() {
+  const t = translations[currentLang];
+  const shown = currentSelectedTable || '--';
+  $('currentTableDisplay').textContent = shown;
+  $('statusModalTable').textContent = shown;
+  $('tableLockIcon').classList.toggle('hidden', !tableLocked);
+
+  // Locked (from QR): fixed indicator only. Otherwise: dropdown built from the restaurant's table count.
+  $('tableFixedBox').classList.toggle('hidden', !tableLocked);
+  $('qrSubText').classList.toggle('hidden', !tableLocked);
+  $('tableSelectBox').classList.toggle('hidden', tableLocked);
+  if (tableLocked) {
+    $('cartTableFixed').textContent = TABLE_PARAM;
+  } else {
+    $('cartTableSelect').innerHTML =
+      `<option value="">${t.chooseTable}</option>` +
+      restaurant.tables.map(n => `<option value="${n}" ${n === currentSelectedTable ? 'selected' : ''}>${n}</option>`).join('');
+  }
+}
+
 function renderAll() {
   const lang = currentLang;
-  $('brandName').textContent = restaurant.name;
-  $('brandIcon').className = `fa-solid ${restaurant.logoIcon}`;
+  renderBrand();
   $('promoTag').textContent = promo.tag[lang];
   $('promoTitle').textContent = promo.title[lang];
   $('promoSub').textContent = promo.description[lang];
   $('promoImg').src = promo.image;
   $('promoImg').alt = promo.title[lang];
-  $('cartTableSelect').innerHTML = restaurant.tables.map(t => `<option value="${t}" ${t === currentSelectedTable ? 'selected' : ''}>${t}</option>`).join('');
-  $('currentTableDisplay').textContent = currentSelectedTable;
-  $('statusModalTable').textContent = currentSelectedTable;
+  renderTableUI();
+  if (fatalKey) $('fatalMsg').textContent = translations[lang][fatalKey];
   renderCategoryChips();
   renderMenuItems();
   updateCartBarDisplay();
@@ -535,10 +623,12 @@ function updateCartBarDisplay() {
 }
 
 function openCartModal() { if (!cart.length) return; renderCartModalItems(); $('cartModal').classList.remove('hidden'); }
+
+/* Only used when there is no ?table= in the URL; ignored when the table is locked by the QR code */
 function updateTableNumber(v) {
+  if (tableLocked) return;
   currentSelectedTable = v;
-  $('currentTableDisplay').textContent = v;
-  $('statusModalTable').textContent = v;
+  renderTableUI();
 }
 
 function renderCartModalItems() {
@@ -601,9 +691,13 @@ function addModalItemToCart() {
 function submitOrderToFirebase() {
   if (!cart.length) return;
   if (!db) { alert(translations[currentLang].offline); return; }
+
+  const table = tableLocked ? TABLE_PARAM : currentSelectedTable;   // locked table always wins
+  if (!table) { alert(translations[currentLang].chooseTable); return; }
+
   const lines = cartLines(), sub = cartSubtotal();
   const payload = {
-    tableNumber: currentSelectedTable,
+    tableNumber: table,
     items: lines.map(l => ({ id: l.id, quantity: l.quantity, price: l.price, name: l.name.fr })),
     notes: $('orderNotesInput').value.trim(),
     subtotal: sub,
