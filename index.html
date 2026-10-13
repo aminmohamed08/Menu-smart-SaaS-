@@ -1,0 +1,663 @@
+<!DOCTYPE html>
+<html lang="fr" class="bg-slate-900" dir="ltr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Menu Digital</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script>
+tailwind.config = { theme: { extend: {
+  colors: { brand: { 50:'#fff1f2', 100:'#ffe4e6', 500:'#f43f5e', 600:'#e11d48', 700:'#be123c' } },
+  fontFamily: { sans: ['Plus Jakarta Sans','Cairo','sans-serif'] }
+} } }
+</script>
+<style>
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+.glass-card { background: rgba(255,255,255,0.95); backdrop-filter: blur(12px); }
+html[lang="ar"] body { font-family: 'Cairo','Plus Jakarta Sans',sans-serif; }
+#categoryChips { -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; }
+#categoryChips.dragging { cursor: grabbing; }
+@media (max-width: 639px) { body, .app-frame { min-height: 100dvh; } }
+</style>
+</head>
+<body class="w-full min-h-screen bg-slate-900 text-slate-800 font-sans antialiased sm:flex sm:justify-center sm:items-center sm:p-4">
+
+<!-- App frame: full-width page on phones (sticky header + chips); emulator frame from sm: up -->
+<div class="app-frame w-full min-h-screen sm:min-h-0 sm:max-w-md sm:h-[min(900px,calc(100dvh-2rem))] bg-slate-50 sm:rounded-[38px] sm:shadow-2xl flex flex-col relative sm:overflow-hidden sm:border-4 border-slate-800/20">
+
+  <!-- Header -->
+  <div class="sticky top-0 z-30 sm:static flex-shrink-0">
+  <header class="bg-slate-900 text-white px-4 sm:px-5 pt-[max(1rem,env(safe-area-inset-top))] pb-4 shadow-md">
+    <div class="flex justify-between items-center mb-3 gap-2">
+      <div class="flex items-center space-x-3 rtl:space-x-reverse min-w-0">
+        <div class="w-10 h-10 shrink-0 rounded-2xl bg-gradient-to-tr from-brand-600 to-amber-500 flex items-center justify-center text-white shadow-lg text-xl">
+          <i id="brandIcon" class="fa-solid fa-utensils"></i>
+        </div>
+        <div class="min-w-0">
+          <h1 id="brandName" class="text-lg font-bold tracking-tight leading-tight truncate">--</h1>
+          <p class="text-xs text-slate-400 flex items-center gap-1 truncate">
+            <span class="w-2 h-2 shrink-0 rounded-full bg-emerald-500 inline-block animate-pulse"></span>
+            <span data-i18n="tableLabel">Table</span> <span id="currentTableDisplay" class="font-bold text-amber-400">07</span>
+          </p>
+        </div>
+      </div>
+      <button onclick="toggleLanguage()" class="shrink-0 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-200 border border-slate-700 rounded-xl transition flex items-center gap-1.5 whitespace-nowrap">
+        <i class="fa-solid fa-globe text-amber-400"></i>
+        <span id="langBtnText">العربية</span>
+      </button>
+    </div>
+    <div class="relative">
+      <i class="fa-solid fa-magnifying-glass absolute left-3.5 rtl:left-auto rtl:right-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm"></i>
+      <input type="text" id="searchInput" oninput="filterMenu()" data-i18n-ph="searchPlaceholder"
+        class="w-full bg-slate-800/80 text-sm text-white placeholder-slate-400 pl-10 pr-9 rtl:pr-10 rtl:pl-9 py-2.5 rounded-2xl focus:outline-none focus:ring-2 focus:ring-brand-500 border border-slate-700/60 transition">
+      <button id="clearSearchBtn" onclick="clearSearch()" class="hidden absolute right-3 rtl:right-auto rtl:left-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white">
+        <i class="fa-solid fa-circle-xmark text-sm"></i>
+      </button>
+    </div>
+  </header>
+
+  <!-- Category chips -->
+  <nav id="categoryChips" class="bg-slate-900 border-b border-slate-800 py-3 px-4 flex flex-nowrap items-center gap-2 overflow-x-auto overflow-y-hidden whitespace-nowrap no-scrollbar select-none cursor-grab"></nav>
+  </div>
+
+  <!-- Main -->
+  <main class="flex-1 sm:min-h-0 sm:overflow-y-auto p-4 space-y-6 pb-28 no-scrollbar">
+
+    <!-- Live order banner -->
+    <div id="activeOrderBanner" class="hidden bg-gradient-to-r from-amber-500 to-amber-600 text-white rounded-2xl p-4 shadow-lg flex items-center justify-between">
+      <div class="flex items-center space-x-3 rtl:space-x-reverse">
+        <div class="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center text-xl"><i id="bannerStatusIcon" class="fa-solid fa-clock"></i></div>
+        <div>
+          <div class="text-xs font-semibold uppercase tracking-wider text-amber-100" data-i18n="activeOrder">Active Order</div>
+          <div class="font-bold text-sm" id="activeOrderStatusText">--</div>
+        </div>
+      </div>
+      <button onclick="openOrderStatusModal()" class="bg-white text-slate-900 px-3 py-1.5 rounded-xl text-xs font-bold shadow hover:bg-amber-50 transition" data-i18n="viewBtn">View</button>
+    </div>
+
+    <!-- Promo banner (filled from promoConfig) -->
+    <div class="relative rounded-2xl overflow-hidden h-36 shadow-lg bg-slate-800">
+      <img id="promoImg" src="" alt="" class="w-full h-full object-cover opacity-60">
+      <div class="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/40 to-transparent p-4 flex flex-col justify-end">
+        <span id="promoTag" class="bg-brand-600 text-white text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-md w-max tracking-wide mb-1"></span>
+        <h2 id="promoTitle" class="text-white text-lg font-bold leading-tight"></h2>
+        <p id="promoSub" class="text-slate-300 text-xs mt-0.5"></p>
+      </div>
+    </div>
+
+    <div id="menuItemsContainer" class="space-y-6"></div>
+  </main>
+
+  <!-- Cart bar -->
+  <div class="fixed sm:absolute bottom-0 inset-x-0 px-4 pt-6 pb-[max(1rem,env(safe-area-inset-bottom))] bg-gradient-to-t from-slate-900 via-slate-900/90 to-transparent z-20 pointer-events-none">
+    <button onclick="openCartModal()" class="pointer-events-auto w-full bg-gradient-to-r from-brand-600 to-rose-600 hover:from-brand-700 hover:to-rose-700 text-white p-3.5 rounded-2xl shadow-xl shadow-brand-600/30 flex items-center justify-between transition-all active:scale-95 border border-white/10">
+      <div class="flex items-center space-x-3 rtl:space-x-reverse">
+        <div class="bg-white/20 w-9 h-9 rounded-xl flex items-center justify-center font-bold text-sm" id="cartCountBadge">0</div>
+        <div class="text-left rtl:text-right">
+          <div class="text-xs text-rose-100 font-medium" data-i18n="cartTitle">Cart</div>
+          <div class="text-sm font-extrabold tracking-tight" id="cartTotalDisplay">0.00 MAD</div>
+        </div>
+      </div>
+      <div class="flex items-center space-x-2 rtl:space-x-reverse text-sm font-bold bg-white/15 px-3.5 py-2 rounded-xl">
+        <span data-i18n="commanderBtn">Order</span>
+        <i class="fa-solid fa-chevron-right rtl:rotate-180 text-xs"></i>
+      </div>
+    </button>
+  </div>
+</div>
+
+<!-- Product modal -->
+<div id="productModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 hidden flex items-end sm:items-center justify-center p-0 sm:p-4">
+  <div class="bg-white w-full max-w-md rounded-t-[32px] sm:rounded-[32px] overflow-hidden shadow-2xl max-h-[90vh] flex flex-col">
+    <div class="relative h-60 bg-slate-200 flex-shrink-0">
+      <img id="modalImage" src="" class="w-full h-full object-cover" alt="">
+      <button onclick="closeModal('productModal')" class="absolute top-4 right-4 rtl:right-auto rtl:left-4 w-9 h-9 bg-slate-900/60 hover:bg-slate-900 text-white rounded-full flex items-center justify-center transition"><i class="fa-solid fa-xmark"></i></button>
+      <div id="modalTag" class="absolute bottom-4 left-4 rtl:left-auto rtl:right-4 bg-amber-500 text-white text-xs font-bold px-3 py-1 rounded-full shadow" data-i18n="popularTag"></div>
+    </div>
+    <div class="p-5 overflow-y-auto space-y-4 flex-1">
+      <div class="flex justify-between items-start gap-3">
+        <div>
+          <h3 id="modalTitle" class="text-xl font-bold text-slate-900">--</h3>
+          <p id="modalCategory" class="text-xs text-slate-500 uppercase tracking-wider font-semibold"></p>
+        </div>
+        <div id="modalPrice" class="text-end flex flex-col items-end"></div>
+      </div>
+      <p id="modalDescription" class="text-sm text-slate-600 leading-relaxed"></p>
+      <div class="border-t border-slate-100 pt-3">
+        <h4 class="text-xs font-bold text-slate-800 uppercase tracking-wider mb-2" data-i18n="ingredientsTitle"></h4>
+        <div id="modalIngredients" class="flex flex-wrap gap-1.5"></div>
+      </div>
+      <div class="flex items-center justify-between border-t border-slate-100 pt-4">
+        <span class="text-sm font-bold text-slate-800" data-i18n="selectQty"></span>
+        <div class="flex items-center space-x-3 rtl:space-x-reverse bg-slate-100 p-1.5 rounded-2xl border border-slate-200">
+          <button onclick="adjustModalQty(-1)" class="w-8 h-8 rounded-xl bg-white text-slate-800 shadow-sm flex items-center justify-center"><i class="fa-solid fa-minus text-xs"></i></button>
+          <span id="modalQtyDisplay" class="font-bold text-slate-900 w-6 text-center text-sm">1</span>
+          <button onclick="adjustModalQty(1)" class="w-8 h-8 rounded-xl bg-brand-600 text-white shadow-sm flex items-center justify-center"><i class="fa-solid fa-plus text-xs"></i></button>
+        </div>
+      </div>
+    </div>
+    <div class="p-4 bg-slate-50 border-t border-slate-100 flex-shrink-0">
+      <button onclick="addModalItemToCart()" class="w-full bg-brand-600 hover:bg-brand-700 text-white py-3.5 rounded-2xl font-bold text-sm shadow-lg transition flex items-center justify-center space-x-2 rtl:space-x-reverse">
+        <i class="fa-solid fa-cart-plus"></i>
+        <span><span data-i18n="addToOrder"></span> • <span id="modalBtnTotalPrice">0.00 MAD</span></span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Cart modal -->
+<div id="cartModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 hidden flex items-end sm:items-center justify-center p-0 sm:p-4">
+  <div class="bg-white w-full max-w-md rounded-t-[32px] sm:rounded-[32px] overflow-hidden shadow-2xl max-h-[90vh] flex flex-col">
+    <div class="p-4 bg-slate-900 text-white flex justify-between items-center">
+      <div class="flex items-center space-x-2 rtl:space-x-reverse"><i class="fa-solid fa-receipt text-amber-400"></i><h3 class="font-bold text-base" data-i18n="orderSummary"></h3></div>
+      <button onclick="closeModal('cartModal')" class="w-8 h-8 bg-slate-800 hover:bg-slate-700 rounded-full flex items-center justify-center text-slate-300"><i class="fa-solid fa-xmark text-sm"></i></button>
+    </div>
+    <div class="p-4 overflow-y-auto space-y-4 flex-1">
+      <div class="bg-amber-50 rounded-2xl p-3 border border-amber-200/80 flex items-center justify-between">
+        <div>
+          <div class="text-xs font-bold text-amber-900" data-i18n="selectedTable"></div>
+          <div class="text-xs text-amber-700" data-i18n="qrSub"></div>
+        </div>
+        <div class="flex items-center space-x-1 rtl:space-x-reverse">
+          <span class="text-xs font-bold text-slate-600" data-i18n="tableLabel"></span>
+          <select id="cartTableSelect" onchange="updateTableNumber(this.value)" class="bg-white font-bold text-slate-900 border border-amber-300 rounded-xl px-2 py-1 text-sm focus:outline-none"></select>
+        </div>
+      </div>
+      <div id="cartItemsList" class="space-y-3 divide-y divide-slate-100"></div>
+      <div>
+        <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+          <i class="fa-regular fa-comment-dots mr-1 rtl:mr-0 rtl:ml-1"></i><span data-i18n="notesLabel"></span>
+        </label>
+        <textarea id="orderNotesInput" rows="2" data-i18n-ph="notesPlaceholder" class="w-full text-xs p-3 rounded-2xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none bg-slate-50"></textarea>
+      </div>
+      <div class="bg-slate-50 p-3.5 rounded-2xl space-y-2 text-xs border border-slate-200/60">
+        <div class="flex justify-between text-slate-600"><span data-i18n="subtotal"></span><span id="cartSubtotal" class="font-semibold">0.00 MAD</span></div>
+        <div class="flex justify-between text-slate-600"><span data-i18n="vat"></span><span id="cartTax" class="font-semibold">0.00 MAD</span></div>
+        <div class="border-t border-slate-200 pt-2 flex justify-between text-sm font-extrabold text-slate-900"><span data-i18n="totalPayable"></span><span id="cartGrandTotal" class="text-brand-600">0.00 MAD</span></div>
+      </div>
+    </div>
+    <div class="p-4 bg-white border-t border-slate-100 flex-shrink-0">
+      <button onclick="submitOrderToFirebase()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-3.5 rounded-2xl font-bold text-sm shadow-lg transition flex items-center justify-center space-x-2 rtl:space-x-reverse">
+        <i class="fa-solid fa-paper-plane"></i><span data-i18n="sendOrderBtn"></span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Order status modal -->
+<div id="orderStatusModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+  <div class="bg-white w-full max-w-sm rounded-[32px] shadow-2xl p-6 text-center space-y-5">
+    <div class="w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto text-2xl shadow-inner">
+      <i id="statusTrackerMainIcon" class="fa-solid fa-paper-plane"></i>
+    </div>
+    <div>
+      <span class="text-xs font-bold uppercase tracking-widest text-slate-400"><span data-i18n="liveStatus"></span> • <span data-i18n="tableLabel"></span> <span id="statusModalTable">07</span></span>
+      <h3 id="statusModalTitle" class="text-xl font-extrabold text-slate-900 mt-1">--</h3>
+      <p id="statusModalSubtext" class="text-xs text-slate-500 mt-1"></p>
+    </div>
+    <button onclick="closeModal('orderStatusModal')" class="w-full bg-slate-900 text-white py-3 rounded-xl font-bold text-xs hover:bg-slate-800 transition" data-i18n="closeReturn"></button>
+  </div>
+</div>
+
+<script type="module">
+/* =====================================================================
+   STORE DATA — everything an admin panel / Firebase would manage.
+   To connect a backend later, call applyStoreData({restaurant, promo,
+   categories, products}) with the fetched data (see initFirebase below,
+   which already listens to the optional "menu" node).
+   Bilingual fields use { fr, ar }. "oldPrice" (optional) shows a
+   strikethrough price next to the current one.
+   ===================================================================== */
+let restaurant = {
+  name: "L'Oasis Gourmand",
+  logoIcon: "fa-utensils",           // any Font Awesome solid icon
+  tables: ["01", "02", "05", "07", "12", "15"],
+  defaultTable: "07"
+};
+
+let promo = {
+  tag:         { fr: "Spécialité du jour", ar: "طبق اليوم الخاص" },
+  title:       { fr: "Combo Ramen & Pizza Signature", ar: "كومبو رامن وبيتزا الشيف" },
+  description: { fr: "Ingrédients frais cuisinés à la perfection.", ar: "مكونات طازجة محضرة بعناية فائقة." },
+  image: "https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=800&q=80"
+};
+
+let menuCategories = [
+  { id: 'all',     label: { fr: 'Tous les plats', ar: 'كل الأطباق' }, icon: 'fa-fire' },
+  { id: 'popular', label: { fr: 'Populaire', ar: 'الأكثر طلباً' }, icon: 'fa-star' },
+  { id: 'ramen',   label: { fr: 'Ramen & Nouilles', ar: 'رامن ونودلز' }, icon: 'fa-bowl-food' },
+  { id: 'pizza',   label: { fr: 'Pizzas Artisanales', ar: 'بيتزا إيطالية' }, icon: 'fa-pizza-slice' },
+  { id: 'dessert', label: { fr: 'Desserts', ar: 'حلويات' }, icon: 'fa-ice-cream' },
+  { id: 'drinks',  label: { fr: 'Boissons', ar: 'مشروبات' }, icon: 'fa-glass-water' }
+];
+
+let menuProducts = [
+  { id: 'p1', category: 'ramen', price: 89.50, oldPrice: 110.00, popular: true, soldOut: false,
+    name: { fr: 'Ramen Boeuf Tantanmen', ar: 'رامن بقر طنطنمن حار' },
+    image: 'https://images.unsplash.com/photo-1569718212165-3a8278d5f624?auto=format&fit=crop&w=600&q=80',
+    description: { fr: 'Poitrine de bœuf coréen grillée, nouilles artisanales dans un bouillon épicé avec œuf mollet.', ar: 'شرائح لحم بقر كوري مشوي مع نودلز طازجة في مرق حار غني مع بيض متبل.' },
+    ingredients: [{ fr: 'Boeuf', ar: 'بقر' }, { fr: 'Nouilles', ar: 'نودلز' }, { fr: 'Bouillon épicé', ar: 'مرق حار' }] },
+  { id: 'p2', category: 'pizza', price: 105.00, oldPrice: 130.00, popular: true, soldOut: false,
+    name: { fr: 'Pizza Margherita Suprema', ar: 'بيتزا مارغريتا سوبليمة' },
+    image: 'https://images.unsplash.com/photo-1604382354936-07c5d9983bd3?auto=format&fit=crop&w=600&q=80',
+    description: { fr: "Sauce tomate San Marzano, mozzarella de bufflonne fraîche, basilic et huile d'olive.", ar: 'صلصة طماطم سان مارزانو، جبن موزاريلا بوفالو طازج، حبق وزيت زيتون.' },
+    ingredients: [{ fr: 'Mozzarella', ar: 'موزاريلا' }, { fr: 'Basilic', ar: 'حبق' }, { fr: "Huile d'olive", ar: 'زيت زيتون' }] },
+  { id: 'p3', category: 'pizza', price: 125.00, popular: false, soldOut: false,
+    name: { fr: 'Pizza Poulet Tikka Épicé', ar: 'بيتزا دجاج تيكا حار' },
+    image: 'https://images.unsplash.com/photo-1513104890138-7c749659a591?auto=format&fit=crop&w=600&q=80',
+    description: { fr: 'Morceaux de poulet tikka marinés, poivrons, oignons rouges, mozzarella et sauce ail.', ar: 'قطع دجاج تيكا متبل حار، فلفل حلو، بصل أحمر، موزاريلا وصلصة الثوم.' },
+    ingredients: [{ fr: 'Poulet tikka', ar: 'دجاج تيكا' }, { fr: 'Poivrons', ar: 'فلفل' }, { fr: 'Mozzarella', ar: 'موزاريلا' }] },
+  { id: 'p4', category: 'dessert', price: 65.00, popular: true, soldOut: false,
+    name: { fr: 'Brownie Lava Fondant', ar: 'براوني الشوكولاتة الذائبة' },
+    image: 'https://images.unsplash.com/photo-1606313564200-e75d5e30476c?auto=format&fit=crop&w=600&q=80',
+    description: { fr: 'Brownie au chocolat noir servi avec glace vanille, pistaches concassées et ganache.', ar: 'براوني شوكولاتة داكنة ساخنة مع آيس كريم فانيليا، فستق وجاناش شوكولاتة.' },
+    ingredients: [{ fr: 'Chocolat noir', ar: 'شوكولاتة داكنة' }, { fr: 'Glace vanille', ar: 'فانيليا' }] },
+  { id: 'p5', category: 'dessert', price: 57.50, popular: false, soldOut: true,
+    name: { fr: 'Coupe Fraise Sundae', ar: 'كأس فرولة وسونداي' },
+    image: 'https://images.unsplash.com/photo-1563805042-7684c019e1cb?auto=format&fit=crop&w=600&q=80',
+    description: { fr: 'Couches de fraises fraîches bio, crème fouettée à la vanille et coulis de fraise.', ar: 'طبقات من الفراولة الطازجة، خفق الكريمة بفانيليا وكوليس الفراولة.' },
+    ingredients: [{ fr: 'Fraises', ar: 'فراولة' }, { fr: 'Crème fouettée', ar: 'كريمة' }] },
+  { id: 'p6', category: 'drinks', price: 45.00, oldPrice: 55.00, popular: false, soldOut: false,
+    name: { fr: 'Matcha Boba Latte', ar: 'لاتيه ماتشا مع بوبا' },
+    image: 'https://images.unsplash.com/photo-1536256263959-770b48d82b0a?auto=format&fit=crop&w=600&q=80',
+    description: { fr: "Matcha japonais de qualité supérieure avec lait d'avoine et perles de tapioca au sucre brun.", ar: 'ماتشا يابانية فاخرة مخلوطة بحليب الشوفان مع حبات البوبا بالسكر البني.' },
+    ingredients: [{ fr: 'Matcha', ar: 'ماتشا' }, { fr: "Lait d'avoine", ar: 'حليب شوفان' }, { fr: 'Tapioca', ar: 'بوبا' }] }
+];
+
+const L = v => (v && typeof v === 'object') ? v : { fr: v || '', ar: v || '' };
+function normalizeProduct(key, p) {
+  return { ingredients: [], popular: false, soldOut: false, ...p, id: key, price: Number(p.price) || 0,
+           oldPrice: p.oldPrice ? Number(p.oldPrice) : null, name: L(p.name), description: L(p.description) };
+}
+
+/* Plug-in point for an admin panel / backend */
+function applyStoreData(data = {}) {
+  if (data.restaurant) restaurant = { ...restaurant, ...data.restaurant };
+  if (data.promo) promo = { ...promo, ...data.promo };
+  if (data.categories) menuCategories = Object.values(data.categories);
+  if (data.products) menuProducts = Object.entries(data.products).map(([k, p]) => normalizeProduct(k, p));
+  renderAll();
+}
+
+/* ---------- UI translations ---------- */
+const translations = {
+  fr: {
+    tableLabel: "Table", searchPlaceholder: "Rechercher des plats, boissons...", activeOrder: "Commande active", viewBtn: "Voir",
+    cartTitle: "Mon Panier", commanderBtn: "Commander", popularTag: "Populaire", ingredientsTitle: "Ingrédients clés",
+    selectQty: "Quantité", addToOrder: "Ajouter au panier", addBtn: "Ajouter", orderSummary: "Récapitulatif de commande",
+    selectedTable: "Table sélectionnée", qrSub: "Scanné via Code QR", notesLabel: "Instructions spéciales",
+    notesPlaceholder: "ex: Sans oignons, très épicé...", subtotal: "Sous-total", vat: "Service & TVA (10%)",
+    totalPayable: "Total à payer", sendOrderBtn: "Envoyer la commande", liveStatus: "Statut en direct",
+    closeReturn: "Fermer & Retour au menu", soldOut: "Épuisé", unavailable: "Indisponible",
+    noResults: "Aucun plat trouvé", cartEmpty: "Panier vide", offline: "Connexion indisponible"
+  },
+  ar: {
+    tableLabel: "مائدة", searchPlaceholder: "بحث عن أطباق، مشروبات...", activeOrder: "طلب نشط", viewBtn: "عرض",
+    cartTitle: "سلة المشتريات", commanderBtn: "إتمام الطلب", popularTag: "الأكثر طلباً", ingredientsTitle: "المكونات الأساسية",
+    selectQty: "حدد الكمية", addToOrder: "إضافة للطلب", addBtn: "إضافة", orderSummary: "ملخص الطلب",
+    selectedTable: "المائدة المحددة", qrSub: "تمت القراءة عبر QR", notesLabel: "ملاحظات خاصة للمطبخ",
+    notesPlaceholder: "مثلاً: بدون بصل، حار جداً...", subtotal: "المجموع الفرعي", vat: "الخدمة والضريبة (10%)",
+    totalPayable: "المجموع الكلي", sendOrderBtn: "إرسال الطلب للنادل", liveStatus: "الحالة الحالية",
+    closeReturn: "إغلاق والرجوع للمينيو", soldOut: "نفذت الكمية", unavailable: "غير متوفر",
+    noResults: "لم يتم العثور على أطباق", cartEmpty: "السلة فارغة", offline: "الاتصال غير متوفر"
+  }
+};
+
+/* Order status texts (generic: any status key sent by the backend is supported) */
+const orderStatuses = {
+  SENT:      { icon: 'fa-paper-plane', fr: ["Commande envoyée !", "En attente de validation par le serveur."], ar: ["تم إرسال الطلب!", "في انتظار تأكيد النادل لطلبك."] },
+  VALIDATED: { icon: 'fa-circle-check', fr: ["Commande validée", "Votre commande a été confirmée."], ar: ["تم تأكيد الطلب", "تم تأكيد طلبك."] },
+  PREPARING: { icon: 'fa-fire-burner', fr: ["En préparation", "Votre repas est en cours de préparation."], ar: ["قيد التحضير", "يتم تحضير وجبتك الآن."] },
+  READY:     { icon: 'fa-bell-concierge', fr: ["Prêt !", "Votre commande arrive à votre table."], ar: ["جاهز!", "طلبك في الطريق إلى مائدتك."] },
+  SERVED:    { icon: 'fa-utensils', fr: ["Bon appétit !", "Votre commande a été servie."], ar: ["بالهناء والشفاء!", "تم تقديم طلبك."] }
+};
+
+orderStatuses.PENDING = orderStatuses.SENT;
+orderStatuses.COMPLETED = orderStatuses.SERVED;
+
+/* ---------- Firebase (dynamic import so the UI works even if it fails) ---------- */
+let db, ref, set, push, onValue;
+/* Multi-tenant: ?restaurant_id=rest_123  (falls back to a default tenant) */
+const RID = (new URLSearchParams(location.search).get('restaurant_id') || 'default_restaurant').replace(/[.#$\[\]\/]/g, '_');
+const ORDER_KEY = 'activeOrderId:' + RID;
+const tenantRef = path => ref(db, `restaurants/${RID}/${path}`);
+
+const firebaseConfig = {
+  apiKey: "AIzaSyDWebazZ8wFnjyNXfx1LYe7_7wRWmYlRe8",
+  authDomain: "digital-qr-menu-7f202.firebaseapp.com",
+  databaseURL: "https://digital-qr-menu-7f202-default-rtdb.firebaseio.com",
+  projectId: "digital-qr-menu-7f202",
+  storageBucket: "digital-qr-menu-7f202.firebasestorage.app",
+  messagingSenderId: "329584219503",
+  appId: "1:329584219503:web:f085858228b35a5145049a"
+};
+let unsubscribeOrder = null;
+
+async function initFirebase() {
+  try {
+    const { initializeApp } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js");
+    const lib = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js");
+    ({ ref, set, push, onValue } = lib);
+    db = lib.getDatabase(initializeApp(firebaseConfig));
+
+    // Tenant content: /restaurants/{id}/config ({restaurant, promo, categories}) and /restaurants/{id}/menu (products)
+    onValue(tenantRef('config'), snap => { if (snap.exists()) applyStoreData(snap.val()); });
+    onValue(tenantRef('menu'), snap => { if (snap.exists()) applyStoreData({ products: snap.val() }); });
+
+    // Resume tracking of an order placed earlier on this device
+    let saved = null;
+    try { saved = localStorage.getItem(ORDER_KEY); } catch (e) {}
+    if (saved) trackOrder(saved);
+  } catch (err) {
+    console.error('Firebase failed to load:', err);
+  }
+}
+
+/* ---------- State ---------- */
+let currentLang = 'fr', activeCategory = 'all', cart = [];
+let currentSelectedTable = restaurant.defaultTable;
+let currentModalItem = null, modalQty = 1, activeStatus = null;
+const $ = id => document.getElementById(id);
+const money = n => `${n.toFixed(2)} MAD`;
+
+/* Price block: current price (red, bold) + old price struck through */
+function priceBlock(item, size = 'text-sm sm:text-base') {
+  const hasOld = item.oldPrice && item.oldPrice > item.price;
+  return `<span class="font-bold text-red-600 ${size}">${money(item.price)}</span>` +
+    (hasOld ? `<span class="text-xs text-gray-400 line-through mx-2">${money(item.oldPrice)}</span>` : '');
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+  const qTable = new URLSearchParams(location.search).get('table');   // e.g. index.html?table=12
+  if (qTable) {
+    currentSelectedTable = qTable;
+    if (!restaurant.tables.includes(qTable)) restaurant.tables.push(qTable);
+  }
+  initChipScroller();
+  updateLanguageUI();
+  initFirebase();
+});
+
+/* ---------- Rendering ---------- */
+function renderAll() {
+  const lang = currentLang;
+  $('brandName').textContent = restaurant.name;
+  $('brandIcon').className = `fa-solid ${restaurant.logoIcon}`;
+  $('promoTag').textContent = promo.tag[lang];
+  $('promoTitle').textContent = promo.title[lang];
+  $('promoSub').textContent = promo.description[lang];
+  $('promoImg').src = promo.image;
+  $('promoImg').alt = promo.title[lang];
+  $('cartTableSelect').innerHTML = restaurant.tables.map(t => `<option value="${t}" ${t === currentSelectedTable ? 'selected' : ''}>${t}</option>`).join('');
+  $('currentTableDisplay').textContent = currentSelectedTable;
+  $('statusModalTable').textContent = currentSelectedTable;
+  renderCategoryChips();
+  renderMenuItems();
+  updateCartBarDisplay();
+  renderCartModalItems();
+  renderOrderStatus();
+}
+
+function toggleLanguage() {
+  currentLang = currentLang === 'fr' ? 'ar' : 'fr';
+  updateLanguageUI();
+}
+
+function updateLanguageUI() {
+  const t = translations[currentLang], html = document.documentElement;
+  html.setAttribute('lang', currentLang);
+  html.setAttribute('dir', currentLang === 'ar' ? 'rtl' : 'ltr');
+  $('langBtnText').textContent = currentLang === 'ar' ? 'Français' : 'العربية';
+  document.querySelectorAll('[data-i18n]').forEach(el => { if (t[el.dataset.i18n]) el.textContent = t[el.dataset.i18n]; });
+  document.querySelectorAll('[data-i18n-ph]').forEach(el => { if (t[el.dataset.i18nPh]) el.placeholder = t[el.dataset.i18nPh]; });
+  renderAll();
+}
+
+function renderCategoryChips() {
+  const container = $('categoryChips');
+  container.innerHTML = menuCategories.map(cat => {
+    const on = cat.id === activeCategory;
+    return `<button data-cat="${cat.id}" onclick="selectCategory('${cat.id}')"
+      class="flex-shrink-0 px-3.5 py-2 rounded-2xl text-xs font-bold inline-flex items-center gap-1.5 whitespace-nowrap transition-all ${
+        on ? 'bg-brand-600 text-white shadow-lg shadow-brand-600/30 ring-2 ring-brand-500/50' : 'bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white'}">
+      <i class="fa-solid ${cat.icon} text-xs"></i><span>${cat.label[currentLang]}</span></button>`;
+  }).join('');
+  const active = container.querySelector(`[data-cat="${activeCategory}"]`);
+  if (active) active.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+}
+
+function initChipScroller() {
+  const el = $('categoryChips');
+  let down = false, moved = false, startX = 0, startLeft = 0;
+  el.addEventListener('wheel', e => {
+    if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+      el.scrollLeft += e.deltaY * (document.documentElement.dir === 'rtl' ? -1 : 1);
+      e.preventDefault();
+    }
+  }, { passive: false });
+  el.addEventListener('pointerdown', e => {
+    if (e.pointerType !== 'mouse') return;
+    down = true; moved = false; startX = e.clientX; startLeft = el.scrollLeft;
+  });
+  window.addEventListener('pointermove', e => {
+    if (!down) return;
+    const dx = e.clientX - startX;
+    if (Math.abs(dx) > 5) { moved = true; el.classList.add('dragging'); }
+    el.scrollLeft = startLeft - dx;
+  });
+  window.addEventListener('pointerup', () => { down = false; el.classList.remove('dragging'); });
+  el.addEventListener('click', e => { if (moved) { e.stopPropagation(); e.preventDefault(); moved = false; } }, true);
+}
+
+function selectCategory(id) { activeCategory = id; renderCategoryChips(); renderMenuItems(); }
+
+function renderMenuItems() {
+  const container = $('menuItemsContainer');
+  const kw = ($('searchInput').value || '').toLowerCase().trim();
+  const lang = currentLang, t = translations[lang];
+
+  const list = menuProducts.filter(p => {
+    const okCat = activeCategory === 'all' || (activeCategory === 'popular' && p.popular) || p.category === activeCategory;
+    return okCat && ((p.name[lang] || '').toLowerCase().includes(kw) || (p.description[lang] || '').toLowerCase().includes(kw));
+  });
+
+  if (!list.length) {
+    container.innerHTML = `<div class="text-center py-12 text-slate-400"><i class="fa-solid fa-utensils text-3xl text-slate-600 mb-2"></i>
+      <p class="font-bold text-sm text-slate-500">${t.noResults}</p></div>`;
+    return;
+  }
+
+  container.innerHTML = list.map(item => {
+    const qty = getCartItemQuantity(item.id);
+    const badge = item.soldOut
+      ? `<div class="absolute inset-0 bg-slate-900/70 flex items-center justify-center"><span class="bg-red-600 text-white text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded">${t.soldOut}</span></div>`
+      : item.popular ? `<span class="absolute top-1 left-1 rtl:left-auto rtl:right-1 bg-amber-500 text-white text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded shadow">${t.popularTag}</span>` : '';
+    const action = item.soldOut
+      ? `<span class="text-xs text-slate-400 font-bold italic">${t.unavailable}</span>`
+      : qty > 0
+        ? `<div class="flex items-center space-x-2 rtl:space-x-reverse bg-slate-100 p-1 rounded-xl border border-slate-200">
+             <button onclick="updateCartQty('${item.id}', -1)" class="w-6 h-6 rounded-lg bg-white text-slate-800 shadow-sm flex items-center justify-center"><i class="fa-solid fa-minus text-[10px]"></i></button>
+             <span class="font-bold text-xs text-slate-900 w-4 text-center">${qty}</span>
+             <button onclick="updateCartQty('${item.id}', 1)" class="w-6 h-6 rounded-lg bg-brand-600 text-white shadow-sm flex items-center justify-center"><i class="fa-solid fa-plus text-[10px]"></i></button>
+           </div>`
+        : `<button onclick="updateCartQty('${item.id}', 1)" class="bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold px-3 py-1.5 rounded-xl shadow-sm transition flex items-center space-x-1 rtl:space-x-reverse">
+             <i class="fa-solid fa-plus text-[10px]"></i><span>${t.addBtn}</span></button>`;
+    return `
+      <div class="glass-card rounded-2xl p-3 shadow-sm border border-slate-200/80 hover:shadow-md transition flex items-center space-x-3.5 rtl:space-x-reverse relative overflow-hidden">
+        <div onclick="openProductModal('${item.id}')" class="relative w-24 h-24 rounded-xl overflow-hidden bg-slate-100 flex-shrink-0 cursor-pointer group">
+          <img src="${item.image}" alt="${item.name[lang]}" class="w-full h-full object-cover group-hover:scale-105 transition duration-300">${badge}
+        </div>
+        <div class="flex-1 min-w-0">
+          <div onclick="openProductModal('${item.id}')" class="cursor-pointer">
+            <h3 class="font-bold text-sm text-slate-900 truncate leading-snug hover:text-brand-600 transition">${item.name[lang]}</h3>
+            <p class="text-xs text-slate-500 line-clamp-2 mt-0.5 leading-tight">${item.description[lang]}</p>
+          </div>
+          <div class="flex items-center justify-between mt-2.5 gap-2">
+            <div class="flex items-center flex-wrap">${priceBlock(item)}</div>${action}
+          </div>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function filterMenu() {
+  $('clearSearchBtn').classList.toggle('hidden', !$('searchInput').value.length);
+  renderMenuItems();
+}
+function clearSearch() { $('searchInput').value = ''; $('clearSearchBtn').classList.add('hidden'); renderMenuItems(); }
+
+/* ---------- Cart ---------- */
+function getCartItemQuantity(id) { const f = cart.find(i => i.id === id); return f ? f.quantity : 0; }
+
+function updateCartQty(productId, delta) {
+  const p = menuProducts.find(x => x.id === productId);
+  if (!p) return;
+  const idx = cart.findIndex(i => i.id === productId);
+  if (idx > -1) { cart[idx].quantity += delta; if (cart[idx].quantity <= 0) cart.splice(idx, 1); }
+  else if (delta > 0) cart.push({ id: p.id, quantity: delta });
+  renderMenuItems(); updateCartBarDisplay(); renderCartModalItems();
+}
+
+/* Cart lines store only id + quantity; name/price/image are looked up live from menuProducts */
+function cartLines() {
+  return cart.map(c => ({ ...menuProducts.find(p => p.id === c.id), quantity: c.quantity })).filter(l => l.id);
+}
+const cartSubtotal = () => cartLines().reduce((s, l) => s + l.price * l.quantity, 0);
+
+function updateCartBarDisplay() {
+  $('cartCountBadge').textContent = cart.reduce((s, i) => s + i.quantity, 0);
+  $('cartTotalDisplay').textContent = money(cartSubtotal());
+}
+
+function openCartModal() { if (!cart.length) return; renderCartModalItems(); $('cartModal').classList.remove('hidden'); }
+function updateTableNumber(v) {
+  currentSelectedTable = v;
+  $('currentTableDisplay').textContent = v;
+  $('statusModalTable').textContent = v;
+}
+
+function renderCartModalItems() {
+  const box = $('cartItemsList'), lang = currentLang;
+  if (!cart.length) {
+    box.innerHTML = `<p class="text-xs text-slate-400 text-center py-4">${translations[lang].cartEmpty}</p>`;
+    ['cartSubtotal', 'cartTax', 'cartGrandTotal'].forEach(id => $(id).textContent = money(0));
+    if (!$('cartModal').classList.contains('hidden')) closeModal('cartModal');
+    return;
+  }
+  box.innerHTML = cartLines().map(l => `
+    <div class="flex items-center justify-between py-2">
+      <div class="flex items-center space-x-3 rtl:space-x-reverse">
+        <img src="${l.image}" class="w-12 h-12 rounded-xl object-cover" alt="">
+        <div>
+          <div class="font-bold text-xs text-slate-800">${l.name[lang]}</div>
+          <div class="text-[11px] text-slate-500">${money(l.price)} × ${l.quantity}</div>
+        </div>
+      </div>
+      <div class="flex items-center space-x-2 rtl:space-x-reverse bg-slate-100 p-1 rounded-xl border border-slate-200">
+        <button onclick="updateCartQty('${l.id}', -1)" class="w-6 h-6 rounded-lg bg-white text-slate-800 shadow-sm flex items-center justify-center"><i class="fa-solid fa-minus text-[10px]"></i></button>
+        <span class="font-bold text-xs text-slate-900 w-4 text-center">${l.quantity}</span>
+        <button onclick="updateCartQty('${l.id}', 1)" class="w-6 h-6 rounded-lg bg-brand-600 text-white shadow-sm flex items-center justify-center"><i class="fa-solid fa-plus text-[10px]"></i></button>
+      </div>
+    </div>`).join('');
+  const sub = cartSubtotal();
+  $('cartSubtotal').textContent = money(sub);
+  $('cartTax').textContent = money(sub * 0.10);
+  $('cartGrandTotal').textContent = money(sub * 1.10);
+}
+
+/* ---------- Product modal ---------- */
+function openProductModal(id) {
+  const p = menuProducts.find(x => x.id === id);
+  if (!p) return;
+  const lang = currentLang, cat = menuCategories.find(c => c.id === p.category);
+  currentModalItem = p; modalQty = 1;
+  $('modalImage').src = p.image;
+  $('modalImage').alt = p.name[lang];
+  $('modalTitle').textContent = p.name[lang];
+  $('modalCategory').textContent = cat ? cat.label[lang] : p.category;
+  $('modalPrice').innerHTML = `<div class="flex items-center flex-wrap justify-end">${priceBlock(p, 'text-lg')}</div>`;
+  $('modalDescription').textContent = p.description[lang];
+  $('modalQtyDisplay').textContent = 1;
+  $('modalTag').classList.toggle('hidden', !p.popular);
+  $('modalIngredients').innerHTML = (p.ingredients || []).map(i =>
+    `<span class="bg-slate-100 text-slate-700 text-[11px] font-medium px-2.5 py-1 rounded-lg border border-slate-200">${i[lang] || i.fr}</span>`).join('');
+  updateModalPriceButton();
+  $('productModal').classList.remove('hidden');
+}
+function adjustModalQty(d) { modalQty = Math.max(1, modalQty + d); $('modalQtyDisplay').textContent = modalQty; updateModalPriceButton(); }
+function updateModalPriceButton() { if (currentModalItem) $('modalBtnTotalPrice').textContent = money(currentModalItem.price * modalQty); }
+function addModalItemToCart() {
+  if (!currentModalItem || currentModalItem.soldOut) return closeModal('productModal');
+  updateCartQty(currentModalItem.id, modalQty);
+  closeModal('productModal');
+}
+
+/* ---------- Firebase: submit + live status tracking ---------- */
+function submitOrderToFirebase() {
+  if (!cart.length) return;
+  if (!db) { alert(translations[currentLang].offline); return; }
+  const lines = cartLines(), sub = cartSubtotal();
+  const payload = {
+    tableNumber: currentSelectedTable,
+    items: lines.map(l => ({ id: l.id, quantity: l.quantity, price: l.price, name: l.name.fr })),
+    notes: $('orderNotesInput').value.trim(),
+    subtotal: sub,
+    totalAmount: sub * 1.10,
+    status: 'pending',
+    timestamp: Date.now()
+  };
+  const orderRef = push(tenantRef('orders'));
+  set(orderRef, payload).then(() => {
+    cart = [];
+    $('orderNotesInput').value = '';
+    try { localStorage.setItem(ORDER_KEY, orderRef.key); } catch (e) {}
+    updateCartBarDisplay(); renderMenuItems(); closeModal('cartModal');
+    trackOrder(orderRef.key);
+    openOrderStatusModal();
+  }).catch(err => { console.error(err); alert(translations[currentLang].offline); });
+}
+
+function trackOrder(orderId) {
+  if (typeof unsubscribeOrder === 'function') unsubscribeOrder();
+  activeStatus = 'pending';
+  renderOrderStatus();
+  unsubscribeOrder = onValue(tenantRef(`orders/${orderId}`), snap => {
+    if (!snap.exists()) {                 // order was cleared on the venue side
+      activeStatus = null;
+      try { localStorage.removeItem(ORDER_KEY); } catch (e) {}
+    } else {
+      activeStatus = snap.val().status;
+    }
+    renderOrderStatus();
+  });
+}
+
+function renderOrderStatus() {
+  const banner = $('activeOrderBanner');
+  const info = activeStatus && (orderStatuses[String(activeStatus).toUpperCase()] || orderStatuses.SENT);
+  banner.classList.toggle('hidden', !info);
+  if (!info) { closeModal('orderStatusModal'); return; }
+  const [title, sub] = info[currentLang];
+  $('statusTrackerMainIcon').className = `fa-solid ${info.icon}`;
+  $('bannerStatusIcon').className = `fa-solid ${info.icon}`;
+  $('statusModalTitle').textContent = title;
+  $('statusModalSubtext').textContent = sub;
+  $('activeOrderStatusText').textContent = title;
+}
+
+function openOrderStatusModal() { $('orderStatusModal').classList.remove('hidden'); }
+function closeModal(id) { $(id).classList.add('hidden'); }
+
+/* ---------- Expose handlers used by inline onclick/oninput ---------- */
+Object.assign(window, {
+  toggleLanguage, selectCategory, filterMenu, clearSearch, updateCartQty, openProductModal, adjustModalQty,
+  addModalItemToCart, openCartModal, updateTableNumber, submitOrderToFirebase, openOrderStatusModal, closeModal
+});
+</script>
+</body>
+</html>

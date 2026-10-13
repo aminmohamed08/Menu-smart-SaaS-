@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>طباعة رموز QR للطاولات</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- QR Code library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --card-w: 74mm;     /* A7 width  */
+            --card-h: 68mm;     /* reduced A7 height so 4 rows fit on one A4 sheet */
+        }
+
+        * { box-sizing: border-box; }
+        body { font-family: 'Cairo', sans-serif; background-color: #F3F4F6; }
+
+        .spinner {
+            width: 40px; height: 40px; border: 4px solid #FED7AA;
+            border-top-color: #F97316; border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* ================= Sheet: 2 columns x 4 rows = 8 cards ================= */
+        .preview-scroll { overflow-x: auto; }
+
+        .print-page {
+            display: grid;
+            grid-template-columns: repeat(2, var(--card-w));   /* grid-cols-2 */
+            grid-template-rows: repeat(4, var(--card-h));      /* 4 rows */
+            width: calc(var(--card-w) * 2);                    /* 148mm */
+            height: calc(var(--card-h) * 4);                   /* 272mm */
+            margin: 0 auto 8mm auto;
+            gap: 0;                                            /* cards touch: easy to cut */
+            background: #fff;
+        }
+
+        /* ================= Card ================= */
+        .qr-card {
+            width: var(--card-w);
+            height: var(--card-h);
+            padding: 3mm 4mm;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: space-between;
+            text-align: center;
+            background: #fff;
+            border: 0.25mm dashed #9CA3AF;        /* cut guide */
+            overflow: hidden;
+            break-inside: avoid;
+            page-break-inside: avoid;
+        }
+        .card-logo {
+            width: 9mm; height: 9mm; border-radius: 50%;
+            object-fit: cover; border: 0.2mm solid #E5E7EB;
+            flex: none;
+        }
+        .card-name {
+            font-size: 11pt; font-weight: 700; color: #111827; line-height: 1.2;
+            max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .card-table {
+            font-size: 10pt; font-weight: 700; color: #EA580C;
+            background: #FFF7ED; border-radius: 999px; padding: 0.4mm 4mm;
+            line-height: 1.5;
+        }
+        .qr-box { width: 26.5mm; height: 26.5mm; flex: none; }   /* ~100px */
+        .qr-box canvas { display: none !important; }              /* keep only the <img> qrcodejs creates */
+        .qr-box img {
+            display: block;
+            width: 26.5mm !important; height: 26.5mm !important;  /* generated at 300px, shown at ~100px: stays sharp */
+            image-rendering: pixelated;
+        }
+        .card-hint { font-size: 8pt; color: #4B5563; line-height: 1.2; }
+
+        /* ================= Print ================= */
+        @page { size: A4 portrait; margin: 10mm; }   /* usable area 190 x 277mm; sheet uses 148 x 272mm */
+
+        @media print {
+            html, body {
+                margin: 0 !important; padding: 0 !important;
+                background: #fff !important;
+                -webkit-print-color-adjust: exact; print-color-adjust: exact;
+            }
+            .no-print { display: none !important; }
+
+            .preview-scroll { overflow: visible !important; }
+            #qrContainer { max-width: none !important; width: auto !important; margin: 0 !important; padding: 0 !important; }
+
+            .print-page {
+                margin: 0 auto !important;
+                page-break-after: always;
+                break-after: page;
+            }
+            .print-page:last-child {
+                page-break-after: auto;
+                break-after: auto;
+            }
+        }
+    </style>
+</head>
+<body class="p-6">
+
+    <!-- Control bar (hidden when printing) -->
+    <div class="no-print max-w-5xl mx-auto mb-8 flex flex-col sm:flex-row justify-between items-center gap-3 bg-white p-4 rounded-2xl shadow-sm">
+        <div>
+            <h1 class="text-lg font-bold text-gray-800" id="headerTitle">جاري تحميل بيانات المطعم...</h1>
+            <p class="text-xs text-gray-500">8 بطاقات في كل صفحة A4 (عمودان × 4 صفوف) — اضبط الطابعة على 100% بدون "ملاءمة الصفحة"</p>
+        </div>
+        <div class="flex gap-3">
+            <button onclick="window.history.back()" class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-xl text-xs font-semibold">العودة للوحة التحكم</button>
+            <button id="printBtn" onclick="window.print()" disabled
+                    class="bg-orange-500 hover:bg-orange-600 text-white px-5 py-2 rounded-xl text-xs font-bold shadow-md flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
+                <span>🖨️ طباعة الرموز الآن</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Loading indicator -->
+    <div id="loadingBox" class="no-print max-w-5xl mx-auto flex flex-col items-center justify-center py-16 gap-3">
+        <div class="spinner"></div>
+        <p class="text-sm text-gray-500">جاري تحميل البيانات وتوليد الرموز...</p>
+    </div>
+
+    <!-- QR sheets -->
+    <div class="preview-scroll">
+        <main id="qrContainer" class="max-w-5xl mx-auto"></main>
+    </div>
+
+    <script>
+        // ---------- Firebase ----------
+        const firebaseConfig = {
+            apiKey: "AIzaSyDWebazZ8wFnjyNXfx1LYe7_7wRWmYlRe8",
+            authDomain: "digital-qr-menu-7f202.firebaseapp.com",
+            databaseURL: "https://digital-qr-menu-7f202-default-rtdb.firebaseio.com",
+            projectId: "digital-qr-menu-7f202",
+            storageBucket: "digital-qr-menu-7f202.firebasestorage.app",
+            messagingSenderId: "329584219503",
+            appId: "1:329584219503:web:f085858228b35a5145049a"
+        };
+        if (!firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
+        }
+
+        const CARDS_PER_PAGE = 8;       // 2 columns x 4 rows
+        const QR_RENDER_SIZE = 300;     // rendered large, displayed at ~26.5mm (~100px) for sharp printing
+        const DEFAULT_LOGO = 'data:image/svg+xml;utf8,' + encodeURIComponent(
+            '<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"><rect width="64" height="64" rx="32" fill="#FED7AA"/><text x="32" y="42" font-size="28" text-anchor="middle" fill="#EA580C" font-family="Arial">R</text></svg>'
+        );
+
+        // ---------- Helpers ----------
+        function showError(message) {
+            document.getElementById('headerTitle').innerText = message;
+            document.getElementById('loadingBox').style.display = 'none';
+        }
+
+        /**
+         * Find the restaurant:
+         *  1) by key  -> /restaurants/{id}
+         *  2) fallback: orderByChild('id').equalTo(id)
+         *  3) fallback: orderByChild('name').equalTo(id)
+         * Returns { key, data } or null.
+         */
+        async function findRestaurant(restaurantId) {
+            const db = firebase.database();
+
+            const direct = await db.ref('restaurants/' + restaurantId).once('value');
+            if (direct.exists() && direct.val() && typeof direct.val() === 'object') {
+                return { key: direct.key, data: direct.val() };
+            }
+
+            for (const field of ['id', 'name']) {
+                try {
+                    const snap = await db.ref('restaurants').orderByChild(field).equalTo(restaurantId).limitToFirst(1).once('value');
+                    if (snap.exists()) {
+                        let found = null;
+                        snap.forEach((child) => { found = { key: child.key, data: child.val() }; return true; });
+                        if (found) return found;
+                    }
+                } catch (err) {
+                    console.warn('Fallback query by "' + field + '" failed:', err);
+                }
+            }
+            return null;
+        }
+
+        // Wait until qrcodejs has produced a loaded <img> in every box
+        function waitForQRImages(boxes, timeoutMs = 20000) {
+            return new Promise((resolve) => {
+                const start = Date.now();
+                (function check() {
+                    const allReady = boxes.every((box) => {
+                        const img = box.querySelector('img');
+                        return img && img.getAttribute('src') && img.complete && img.naturalWidth > 0;
+                    });
+                    if (allReady || Date.now() - start > timeoutMs) return resolve(allReady);
+                    setTimeout(check, 80);
+                })();
+            });
+        }
+
+        function waitForImage(img) {
+            return new Promise((resolve) => {
+                if (img.complete) return resolve();
+                img.onload = img.onerror = () => resolve();
+            });
+        }
+
+        // ---------- Main ----------
+        window.addEventListener('DOMContentLoaded', async () => {
+            const params = new URLSearchParams(window.location.search);
+            const restaurantId = (params.get('restaurant_id') || '').trim();
+
+            if (!restaurantId) {
+                showError('خطأ: لم يتم تحديد المطعم!');
+                return;
+            }
+
+            try {
+                const result = await findRestaurant(restaurantId);
+                if (!result) {
+                    showError('المطعم غير موجود في القاعدة!');
+                    return;
+                }
+
+                const { key: restKey, data: rest } = result;
+                const restaurantName = rest.name || 'المطعم';
+                const logoUrl = rest.logo || DEFAULT_LOGO;
+                const tablesCount = parseInt(rest.tablesCount, 10);
+
+                if (!Number.isInteger(tablesCount) || tablesCount < 1) {
+                    showError('عدد الطاولات غير صالح لهذا المطعم.');
+                    return;
+                }
+
+                const pagesCount = Math.ceil(tablesCount / CARDS_PER_PAGE);
+                document.getElementById('headerTitle').innerText =
+                    `رموز QR الخاصة بمطعم: ${restaurantName} (${tablesCount} طاولات — ${pagesCount} صفحة A4)`;
+
+                // Menu base URL: index.html in the same folder as this page
+                const baseUrl = "https://menu-smart.fikra-automation.com/index.html";
+
+                const container = document.getElementById('qrContainer');
+                container.innerHTML = '';
+
+                const qrBoxes = [];
+                const logoImgs = [];
+                let pageEl = null;
+
+                for (let i = 1; i <= tablesCount; i++) {
+                    // New A4 sheet every 8 cards
+                    if ((i - 1) % CARDS_PER_PAGE === 0) {
+                        pageEl = document.createElement('section');
+                        pageEl.className = 'print-page';
+                        container.appendChild(pageEl);
+                    }
+
+                    // index.html?resto={restaurant_id}&table={table_number}
+                    const tableUrl = `${baseUrl}?resto=${encodeURIComponent(restKey)}&table=${i}`;
+
+                    const card = document.createElement('div');
+                    card.className = 'qr-card';
+
+                    const logo = document.createElement('img');
+                    logo.src = logoUrl;
+                    logo.alt = '';
+                    logo.className = 'card-logo';
+                    logoImgs.push(logo);
+
+                    const title = document.createElement('div');
+                    title.className = 'card-name';
+                    title.textContent = restaurantName;
+
+                    const badge = document.createElement('div');
+                    badge.className = 'card-table';
+                    badge.textContent = `طاولة رقم ${i}`;
+
+                    const qrBox = document.createElement('div');
+                    qrBox.className = 'qr-box';
+
+                    const hint = document.createElement('div');
+                    hint.className = 'card-hint';
+                    hint.textContent = 'امسح الرمز لطلب قائمتك';
+
+                    card.append(logo, title, badge, qrBox, hint);
+                    pageEl.appendChild(card);
+
+                    new QRCode(qrBox, {
+                        text: tableUrl,
+                        width: QR_RENDER_SIZE,
+                        height: QR_RENDER_SIZE,
+                        colorDark: '#000000',
+                        colorLight: '#ffffff',
+                        correctLevel: QRCode.CorrectLevel.M
+                    });
+                    qrBoxes.push(qrBox);
+                }
+
+                // Wait for every QR image + logo to be fully rendered
+                const ok = await waitForQRImages(qrBoxes);
+                await Promise.all(logoImgs.map(waitForImage));
+
+                // Done: hide loader, enable print
+                document.getElementById('loadingBox').style.display = 'none';
+                document.getElementById('printBtn').disabled = false;
+
+                if (!ok) console.warn('Some QR codes may not have finished rendering.');
+
+                // Optional auto print: print-qr.html?restaurant_id=...&autoprint=1
+                if (ok && params.get('autoprint') === '1') {
+                    setTimeout(() => window.print(), 300);
+                }
+
+            } catch (error) {
+                console.error(error);
+                showError('حدث خطأ أثناء تحميل البيانات.');
+            }
+        });
+    </script>
+</body>
+</html>
