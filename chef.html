@@ -559,7 +559,11 @@ function processImageFile(file) {
       const ctx = canvas.getContext('2d');
       ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h);   // flatten transparent PNGs onto white
       ctx.drawImage(img, 0, 0, w, h);
-      $('item-image').value = canvas.toDataURL('image/jpeg', 0.8);
+      let webpData = canvas.toDataURL('image/webp', 0.8);
+      if (!webpData.startsWith('data:image/webp')) {
+          webpData = canvas.toDataURL('image/jpeg', 0.8);
+      }
+      $('#item-image').value = webpData;
       updateImagePreview();
     };
     img.src = evt.target.result;
