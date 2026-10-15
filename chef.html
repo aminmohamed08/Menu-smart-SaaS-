@@ -81,7 +81,15 @@
 </head>
 <body class="bg-gray-100 min-h-screen">
 
-<!-- Login screen (shown instantly when no session is stored) -->
+<!-- Boot screen: shown while a stored session is being verified -->
+<div id="boot-screen" class="hidden min-h-screen flex items-center justify-center bg-slate-900" role="status" aria-live="polite">
+  <div class="text-center text-slate-300 space-y-3">
+    <i class="fa-solid fa-spinner fa-spin text-3xl text-amber-500" aria-hidden="true"></i>
+    <p class="text-sm font-bold">جاري التحقق من الجلسة...</p>
+  </div>
+</div>
+
+<!-- Login screen -->
 <div id="login-screen" class="hidden min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 to-slate-800 p-4">
   <div class="reveal w-full max-w-sm bg-white rounded-2xl shadow-2xl p-7 space-y-6">
     <div class="text-center space-y-2">
@@ -91,6 +99,15 @@
       <p id="login-rid-line" class="hidden text-[11px] text-gray-400">المطعم: <span id="login-rid" dir="ltr" class="font-bold text-gray-600"></span></p>
     </div>
     <form id="login-form" class="space-y-4" novalidate>
+      <!-- Only shown when the page was opened without ?restaurant_id=... -->
+      <div id="login-rid-field" class="hidden">
+        <label for="login-rid-input" class="block text-xs font-bold text-gray-600 mb-1">معرّف المطعم (Restaurant ID)</label>
+        <div class="relative">
+          <i class="fa-solid fa-store absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm" aria-hidden="true"></i>
+          <input id="login-rid-input" type="text" dir="ltr" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="le_palmier_12345"
+            class="w-full pr-9 pl-3 py-2.5 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 text-left">
+        </div>
+      </div>
       <div>
         <label for="login-email" class="block text-xs font-bold text-gray-600 mb-1">البريد الإلكتروني</label>
         <div class="relative">
@@ -232,16 +249,22 @@
 /* =====================================================================
    chef.html — kitchen / waiter dashboard
 
-   Authentication (no Firebase Auth):
-     - Credentials are checked against restaurants/{id} in the Realtime
-       Database (email, password, status) exactly as admin.html writes them.
-     - On success the session is kept in localStorage:
-         chef_restaurant_id, chef_email
-     - On page load a stored session opens the dashboard directly;
-       with no session the login screen renders immediately.
+   Authentication (Firebase Auth):
+     1. signInWithEmailAndPassword(email, password)
+     2. DIRECT reads under restaurants/{restaurant_id}/... (no queries,
+        no reads of the restaurants root). restaurant_id comes from
+        ?restaurant_id=... (or the "Restaurant ID" field when the URL has none).
+     3. Access is granted only if the signed-in e-mail equals the
+        restaurant's `email` field (an admin account with the custom claim
+        { admin: true } may also open any restaurant) and the subscription
+        is active.
+
+   Only non-secret hints are kept in localStorage (restaurant id, e-mail).
+   The password is never stored. The Firebase Auth session itself is
+   persisted by the Firebase SDK.
 
    Data paths (shared with index.html / admin.html):
-     restaurants/{restaurant_id}/orders | menu | status | email | meta
+     restaurants/{restaurant_id}/email | status fields | orders | menu | meta
    ===================================================================== */
 
 const FIREBASE_VERSION = '10.8.0';
@@ -255,8 +278,8 @@ const firebaseConfig = {
   appId: "1:329584219503:web:f085858228b35a5145049a"
 };
 
-const KEY_RID = 'chef_restaurant_id';
-const KEY_EMAIL = 'chef_email';
+const KEY_RID = 'chef_restaurant_id';      // remembered restaurant id (not a secret)
+const KEY_EMAIL = 'chef_email';            // present only while a session is open (boot hint)
 const INACTIVE_MSG = 'عذراً، هذا الحساب متوقف حالياً من طرف الإدارة.';
 
 /* ---------- Helpers ---------- */
@@ -264,9 +287,8 @@ const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const money = n => `${Number(n || 0).toFixed(2)} MAD`;
 const L = v => (v && typeof v === 'object') ? v : { fr: v || '', ar: v || '' };
-const cleanId = s => String(s || '').replace(/[.#$\[\]\/]/g, '_');
+const cleanId = s => String(s || '').trim().replace(/[.#$\[\]\/]/g, '_');
 const emailMatch = (a, b) => String(a || '').trim().toLowerCase() === String(b || '').trim().toLowerCase();
-const isActive = s => String(s || 'active').toLowerCase() === 'active';
 const LEGACY = { sent: 'pending', validated: 'preparing' };
 const statusOf = o => { const s = String(o.status || 'pending').toLowerCase(); return LEGACY[s] || s; };
 const itemsOf = o => Array.isArray(o.items) ? o.items : Object.values(o.items || {});
@@ -276,19 +298,34 @@ const STATUS = {
   completed: { label: 'مكتمل', cls: 'bg-emerald-100 text-emerald-800 border-emerald-300' }
 };
 
+/* ---------- Subscription status (same rule as admin.html and index.html) ---------- */
+const STATUS_KEYS = ['is_active', 'active', 'status', 'suspended'];
+const BLOCKED_STATUSES = ['inactive', 'suspended', 'expired', 'disabled', 'blocked', 'cancelled', 'canceled'];
+const isOffFlag = v => v === false || v === 0 || ['false', '0', 'no', 'off'].includes(String(v).trim().toLowerCase());
+function isRestaurantActive(s) {
+  if (!s) return false;
+  if (isOffFlag(s.is_active) || isOffFlag(s.active)) return false;
+  if (s.suspended === true || String(s.suspended).trim().toLowerCase() === 'true') return false;
+  if (s.status != null && BLOCKED_STATUSES.includes(String(s.status).trim().toLowerCase())) return false;
+  return true;
+}
+
 /* localStorage can throw (private mode, blocked storage): never let it break the page */
 const store = {
   get: k => { try { return localStorage.getItem(k); } catch (e) { return null; } },
   set: (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} },
-  clear: () => { try { localStorage.removeItem(KEY_RID); localStorage.removeItem(KEY_EMAIL); } catch (e) {} }
+  clearSession: () => { try { localStorage.removeItem(KEY_EMAIL); } catch (e) {} }
 };
 
 /* ---------- Tenant ---------- */
 const requestedRid = cleanId(new URLSearchParams(location.search).get('restaurant_id'));  // from ?restaurant_id=
-let RID = requestedRid || 'default_restaurant';
+let RID = requestedRid;
+let pendingRid = '';        // restaurant id typed on the login form, used while the sign-in is being verified
+let loginMessage = '';      // message shown on the login screen (suspended, mismatch, ...)
 
 /* ---------- Screens & tabs ---------- */
 function showScreen(state) {
+  $('boot-screen').classList.toggle('hidden', state !== 'boot');
   $('login-screen').classList.toggle('hidden', state !== 'login');
   $('app-header').classList.toggle('hidden', state !== 'app');
   $('app-main').classList.toggle('hidden', state !== 'app');
@@ -323,20 +360,26 @@ function showLoginError(msg) {
   else box.classList.add('hidden');
 }
 
-/* ---------- Firebase (loaded lazily; the login screen never waits for it) ---------- */
-let db, firebaseReady = false, firebasePromise = null;
-let ref, set, push, get, onValue, update, remove, runTransaction, query, orderByChild, equalTo;
+/* ---------- Firebase (loaded lazily) ---------- */
+let db, auth, firebaseReady = false, firebasePromise = null;
+let ref, set, push, get, onValue, update, remove, runTransaction;
+let onAuthStateChanged, signInWithEmailAndPassword, signOut;
 const tenantRef = path => ref(db, `restaurants/${RID}/${path}`);
 
 async function loadFirebase() {
   const base = `https://www.gstatic.com/firebasejs/${FIREBASE_VERSION}`;
-  const [appM, dbM] = await Promise.all([
+  const [appM, dbM, authM] = await Promise.all([
     import(`${base}/firebase-app.js`),
-    import(`${base}/firebase-database.js`)
+    import(`${base}/firebase-database.js`),
+    import(`${base}/firebase-auth.js`)
   ]);
-  ({ ref, set, push, get, onValue, update, remove, runTransaction, query, orderByChild, equalTo } = dbM);
-  db = dbM.getDatabase(appM.initializeApp(firebaseConfig));
+  ({ ref, set, push, get, onValue, update, remove, runTransaction } = dbM);
+  ({ onAuthStateChanged, signInWithEmailAndPassword, signOut } = authM);
+  const app = appM.initializeApp(firebaseConfig);
+  db = dbM.getDatabase(app);
+  auth = authM.getAuth(app);
   firebaseReady = true;
+  onAuthStateChanged(auth, handleAuthState);   // delivers the restored session (or null) once, then every change
 }
 function ensureFirebase() {
   if (!firebasePromise) firebasePromise = loadFirebase().catch(err => { firebasePromise = null; throw err; });
@@ -540,7 +583,7 @@ function editMenuItem(id) {
   openItemModal();
 }
 
-/* Local image -> resized JPEG -> Base64 data URL (kept small so it fits in the Realtime Database) */
+/* Local image -> resized WebP/JPEG -> Base64 data URL (kept small so it fits in the Realtime Database) */
 function processImageFile(file) {
   if (!file) return;
   if (!file.type.startsWith('image/')) { alert('المرجو اختيار صورة صالحة فقط'); return; }
@@ -559,11 +602,9 @@ function processImageFile(file) {
       const ctx = canvas.getContext('2d');
       ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h);   // flatten transparent PNGs onto white
       ctx.drawImage(img, 0, 0, w, h);
-      let webpData = canvas.toDataURL('image/webp', 0.8);
-      if (!webpData.startsWith('data:image/webp')) {
-          webpData = canvas.toDataURL('image/jpeg', 0.8);
-      }
-      $('#item-image').value = webpData;
+      let data = canvas.toDataURL('image/webp', 0.8);
+      if (!data.startsWith('data:image/webp')) data = canvas.toDataURL('image/jpeg', 0.8);
+      $('item-image').value = data;
       updateImagePreview();
     };
     img.src = evt.target.result;
@@ -600,7 +641,7 @@ async function saveMenuItem(e) {
 
 /* ---------- Dashboard lifecycle ---------- */
 let unsubs = [];
-let sessionGen = 0;   // bumps on login/logout so a slow async restore can't revive a closed session
+let sessionGen = 0;   // bumps on every auth change / logout so a slow async check can't revive a closed session
 
 function startDashboard() {
   stopDashboard();
@@ -608,11 +649,14 @@ function startDashboard() {
   seedMenuIfEmpty();
 }
 
-/* If the admin switches the subscription off while the panel is open, sign out immediately */
+/* If the admin suspends the subscription while the panel is open, sign out immediately */
 function watchStatus() {
-  return onValue(tenantRef('status'), snap => {
-    if (snap.exists() && !isActive(snap.val())) logout(INACTIVE_MSG);
-  }, () => {});
+  const cache = {};
+  const offs = STATUS_KEYS.map(k => onValue(tenantRef(k), snap => {
+    cache[k] = snap.exists() ? snap.val() : null;
+    if (!isRestaurantActive(cache)) logout(INACTIVE_MSG);
+  }, () => {}));
+  return () => offs.forEach(off => { try { off(); } catch (e) {} });
 }
 
 function stopDashboard() {
@@ -635,98 +679,127 @@ function enterApp(id, email) {
   switchTab(location.hash === '#menu' ? 'menu' : 'orders');
 }
 
-/* ---------- Login (credentials live in restaurants/{id}) ---------- */
-class LoginError extends Error {}
+/* ---------- Authentication ---------- */
+class AccessError extends Error {}
 
-const collect = (data, email) => Object.entries(data || {})
-  .filter(([, r]) => r && typeof r === 'object' && emailMatch(r.email, email));
-
-/* Targeted indexed queries first (small download); full scan only as a case-insensitive fallback */
-async function findRestaurants(email) {
-  const raw = email.trim(), lower = raw.toLowerCase();
-  for (const candidate of new Set([raw, lower])) {
-    const snap = await get(query(ref(db, 'restaurants'), orderByChild('email'), equalTo(candidate)));
-    const found = collect(snap.val(), raw);
-    if (found.length) return found;
-  }
-  const all = await get(ref(db, 'restaurants'));
-  return collect(all.val(), raw);
+/* Direct reads of the restaurant's own node (no queries, no reads of the restaurants root).
+   Only the fields needed for the check are downloaded (never the password, orders or menu). */
+async function readRestaurantAccess(rid) {
+  const read = async path => {
+    const snap = await get(ref(db, `restaurants/${rid}/${path}`));
+    return snap.exists() ? snap.val() : null;
+  };
+  const [email, ...values] = await Promise.all([read('email'), ...STATUS_KEYS.map(read)]);
+  return { email, status: Object.fromEntries(STATUS_KEYS.map((k, i) => [k, values[i]])) };
 }
 
-const passwordOk = (stored, typed) =>
-  stored !== undefined && stored !== null && stored !== '' &&
-  (String(stored) === typed || String(stored) === typed.trim());
+const isPermissionDenied = err => /permission[_ ]denied/i.test(String((err && (err.code || err.message)) || ''));
+
+function authMessage(err) {
+  const map = {
+    'auth/invalid-credential': 'البريد الإلكتروني أو كلمة المرور غير صحيحة. إذا لم يتم إنشاء حساب الدخول لهذا المطعم بعد، تواصل مع الإدارة.',
+    'auth/invalid-login-credentials': 'البريد الإلكتروني أو كلمة المرور غير صحيحة. إذا لم يتم إنشاء حساب الدخول لهذا المطعم بعد، تواصل مع الإدارة.',
+    'auth/wrong-password': 'كلمة المرور غير صحيحة!',
+    'auth/user-not-found': 'البريد الإلكتروني غير مسجل في النظام!',
+    'auth/invalid-email': 'صيغة البريد الإلكتروني غير صحيحة.',
+    'auth/user-disabled': 'هذا الحساب موقوف.',
+    'auth/too-many-requests': 'محاولات كثيرة. الرجاء الانتظار قليلاً ثم المحاولة من جديد.',
+    'auth/network-request-failed': 'تعذر الاتصال بالإنترنت. تحقق من الشبكة أو من حظر الإعلانات ثم أعد المحاولة.',
+    'auth/operation-not-allowed': 'تسجيل الدخول بالبريد وكلمة المرور غير مفعّل في Firebase (Authentication ← Sign-in method).',
+    'auth/unauthorized-domain': 'هذا النطاق غير مصرّح به في Firebase (Authentication ← Settings ← Authorized domains).'
+  };
+  return map[err && err.code] || 'تعذر تسجيل الدخول: ' + ((err && err.message) || err);
+}
+
+/* Single entry point for every session change (login, page reload, logout, suspension) */
+async function handleAuthState(user) {
+  const gen = ++sessionGen;
+
+  if (!user) { showLoggedOut(); return; }
+
+  const rid = cleanId(requestedRid || pendingRid || store.get(KEY_RID));
+  if (!rid) {
+    /* A session exists (for example an admin account) but no restaurant was specified */
+    showLoggedOut('أدخل معرّف المطعم أو افتح اللوحة من الرابط الخاص بالمطعم.');
+    return;
+  }
+
+  showScreen('boot');
+  let isAdmin = false;
+  try {
+    const token = await user.getIdTokenResult();
+    isAdmin = token.claims.admin === true;
+    RID = rid;
+
+    const info = await readRestaurantAccess(rid);                      // direct read: restaurants/{rid}/...
+    if (gen !== sessionGen) return;
+
+    if (info.email === null) throw new AccessError('المطعم غير موجود. تأكد من معرّف المطعم.');
+    if (!isAdmin && !emailMatch(user.email, info.email)) {             // signed-in e-mail must equal restaurants/{rid}/email
+      throw new AccessError('هذا الحساب لا يخص المطعم المحدد.');
+    }
+    if (!isRestaurantActive(info.status)) throw new AccessError(INACTIVE_MSG);
+
+    if (!isAdmin) {                                                    // hints only (never the password)
+      store.set(KEY_RID, rid);
+      store.set(KEY_EMAIL, user.email || '');
+    }
+    pendingRid = '';
+    loginMessage = '';
+    $('login-password').value = '';
+    enterApp(rid, user.email);
+    startDashboard();
+  } catch (err) {
+    if (gen !== sessionGen) return;
+    console.error('Access check failed:', err);
+    pendingRid = '';
+    const msg = err instanceof AccessError
+      ? err.message
+      : isPermissionDenied(err)
+        ? 'تم رفض الوصول إلى بيانات المطعم (Permission denied). تأكد أن بريد حساب الدخول مطابق للبريد المسجل في بيانات المطعم، وأن قواعد Firebase تسمح للمالك بقراءة restaurants/{id}.'
+        : 'تعذر التحقق من الحساب. تحقق من الاتصال بالإنترنت ثم أعد المحاولة.';
+    if (isAdmin) showLoggedOut(msg);       // keep the shared admin session alive
+    else logout(msg);
+  }
+}
 
 async function handleLogin(e) {
   e.preventDefault();
   const email = $('login-email').value.trim(), password = $('login-password').value;
+  const rid = cleanId(requestedRid || $('login-rid-input').value || store.get(KEY_RID));
   const btn = $('login-btn'), idle = 'تسجيل الدخول';
+  loginMessage = '';
   showLoginError('');
+
+  if (!rid) { showLoginError('الرجاء إدخال معرّف المطعم.'); return; }
   if (!email || !password) { showLoginError('الرجاء إدخال البريد الإلكتروني وكلمة المرور.'); return; }
 
   setBusy(btn, true, idle, '<i class="fa-solid fa-spinner fa-spin ml-1" aria-hidden="true"></i> جاري التحقق...');
   try {
     await ensureFirebase();
-    const matches = await findRestaurants(email);
-    if (!matches.length) throw new LoginError('البريد الإلكتروني غير مسجل في النظام!');
-    const hit = matches.find(([, r]) => passwordOk(r.password, password));
-    if (!hit) throw new LoginError('كلمة المرور غير صحيحة!');
-    const [id, rest] = hit;
-    if (!isActive(rest.status)) throw new LoginError(INACTIVE_MSG);
-    if (requestedRid && requestedRid !== id) throw new LoginError('هذا الحساب لا يخص المطعم المحدد في الرابط.');
-
-    store.set(KEY_RID, id);
-    store.set(KEY_EMAIL, rest.email);
-    $('login-password').value = '';
-    sessionGen++;
-    enterApp(id, rest.email);
-    startDashboard();
+    pendingRid = rid;
+    await signInWithEmailAndPassword(auth, email, password);
+    /* onAuthStateChanged -> handleAuthState() now reads restaurants/{rid} directly and checks the e-mail */
   } catch (ex) {
-    if (ex instanceof LoginError) showLoginError(ex.message);
-    else if (/permission/i.test(ex.message || '')) showLoginError('ليست لديك صلاحية قراءة قاعدة البيانات. راجع قواعد Firebase.');
-    else showLoginError('تعذر الاتصال بقاعدة البيانات. تحقق من الإنترنت أو من حظر الإعلانات ثم أعد المحاولة.');
+    pendingRid = '';
+    showLoginError(authMessage(ex));
     console.error(ex);
   } finally {
     setBusy(btn, false, idle, '');
   }
 }
 
-/* ---------- Session ---------- */
-async function restoreSession(id, email) {
-  const gen = ++sessionGen;
-  enterApp(id, email);                       // dashboard shell appears instantly
-
-  try { await ensureFirebase(); }
-  catch (err) {
-    console.error('Firebase failed to load:', err);
-    showFbError('تعذر تحميل Firebase. تحقق من الإنترنت أو من حظر الإعلانات ثم أعد تحميل الصفحة.');
-    return;
-  }
-
-  /* Make sure the stored session still matches the database (account deleted, e-mail changed, suspended) */
-  try {
-    const [st, em] = await Promise.all([get(tenantRef('status')), get(tenantRef('email'))]);
-    if (gen !== sessionGen) return;
-    if (!em.exists() || !emailMatch(em.val(), email)) { logout('انتهت الجلسة. سجّل الدخول من جديد.'); return; }
-    if (!isActive(st.val())) { logout(INACTIVE_MSG); return; }
-  } catch (err) {
-    console.error('Session check failed:', err);
-    showFbError('تعذر التحقق من الجلسة. تحقق من الاتصال بالإنترنت.');
-  }
-  if (gen !== sessionGen) return;
-  startDashboard();
-}
-
-function logout(message) {
-  sessionGen++;
-  store.clear();
+/* Reset the UI to the login screen (idempotent; `message` is kept until the next login attempt) */
+function showLoggedOut(message) {
+  if (message !== undefined) loginMessage = message;
   stopDashboard();
   closeItemModal(true);
   $('item-form').reset();
   $('fb-error').classList.add('hidden');
-  $('login-email').value = '';
   $('login-password').value = '';
+  if (!loginMessage) $('login-email').value = '';
   if (!requestedRid) {
+    $('login-rid-input').value = cleanId(store.get(KEY_RID));
     try {
       const u = new URL(location.href);
       u.searchParams.delete('restaurant_id');
@@ -735,7 +808,14 @@ function logout(message) {
   }
   switchTab('orders');
   showScreen('login');
-  showLoginError(typeof message === 'string' ? message : '');
+  showLoginError(loginMessage);
+}
+
+function logout(message) {
+  sessionGen++;
+  store.clearSession();
+  showLoggedOut(typeof message === 'string' ? message : '');
+  if (firebaseReady && auth) signOut(auth).catch(err => console.error('Sign-out failed:', err));
 }
 window.logout = () => logout();
 
@@ -787,22 +867,27 @@ $('item-modal').addEventListener('click', e => { if (e.target === $('item-modal'
   zone.addEventListener('drop', e => processImageFile(e.dataTransfer.files[0]));
 })();
 
-/* ---------- Boot (decided synchronously from localStorage: no spinner, no waiting on Firebase) ---------- */
+/* ---------- Boot ---------- */
 function boot() {
-  const id = cleanId(store.get(KEY_RID));
-  const email = store.get(KEY_EMAIL);
+  const storedRid = cleanId(store.get(KEY_RID));
+  const hadSession = !!(storedRid && store.get(KEY_EMAIL));
 
-  /* A stored session is used unless the URL explicitly targets another restaurant */
-  if (id && email && (!requestedRid || requestedRid === id)) {
-    restoreSession(id, email);
-    return;
-  }
   if (requestedRid) {
     $('login-rid').textContent = requestedRid;
     $('login-rid-line').classList.remove('hidden');
+  } else {
+    $('login-rid-field').classList.remove('hidden');
+    $('login-rid-input').value = storedRid;
   }
-  showScreen('login');
-  ensureFirebase().catch(() => {});   // warm up in the background so the first login is quick
+
+  /* A remembered session shows a spinner while Firebase restores it; otherwise the login form appears instantly */
+  showScreen(hadSession ? 'boot' : 'login');
+
+  ensureFirebase().catch(err => {
+    console.error('Firebase failed to load:', err);
+    showScreen('login');
+    showLoginError('تعذر تحميل Firebase. تحقق من الإنترنت أو من حظر الإعلانات ثم أعد تحميل الصفحة.');
+  });
 }
 
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
