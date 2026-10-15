@@ -29,10 +29,32 @@
         #securityGate.is-leaving { opacity: 0; pointer-events: none; }
         .gate-step { animation: gateIn .35s cubic-bezier(0.16, 1, 0.3, 1); }
         @keyframes gateIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-        @media (prefers-reduced-motion: reduce) { .gate-spinner, .gate-step { animation: none; } }
+
+        /* Toast notifications (composite-only animation) */
+        .toast {
+            position: fixed; bottom: 24px; left: 50%; z-index: 120;
+            max-width: calc(100vw - 32px); padding: 10px 18px; border-radius: 12px;
+            font-size: 13px; font-weight: 700; color: #fff; box-shadow: 0 10px 25px rgba(0,0,0,.2);
+            opacity: 0; pointer-events: none; transform: translate(-50%, 16px);
+            transition: opacity .25s cubic-bezier(0.16, 1, 0.3, 1), transform .25s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .toast.show { opacity: 1; transform: translate(-50%, 0); }
+        .toast-success { background: #16A34A; }
+        .toast-error { background: #DC2626; }
+
+        /* Backup modal busy state while a restore / delete is running */
+        #backupModalBody { transition: opacity .2s cubic-bezier(0.16, 1, 0.3, 1); }
+        #backupModalBody.is-busy { opacity: .55; pointer-events: none; }
+
+        @media (prefers-reduced-motion: reduce) {
+            .gate-spinner, .gate-step, .toast, #backupModalBody { animation: none; transition: none; }
+        }
     </style>
 </head>
 <body class="min-h-screen">
+
+    <!-- Toast -->
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
     <!-- ===== Login gate: email + password, admin claim, verified email. Covers everything until all checks pass ===== -->
     <div id="securityGate" class="fixed inset-0 z-[100] bg-gray-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-live="polite">
@@ -142,7 +164,7 @@
             <div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
                 <div>
                     <h2 class="text-xl font-bold text-gray-800">قائمة المطاعم والعملاء</h2>
-                    <p class="text-sm text-gray-500">إدارة حسابات المطاعم، الاشتراكات، والولوج السريع للوحة التحكم</p>
+                    <p class="text-sm text-gray-500">إدارة حسابات المطاعم، الاشتراكات، والنسخ الاحتياطية، والولوج السريع للوحة التحكم</p>
                 </div>
                 <button onclick="toggleModal('addRestaurantModal')" class="bg-orange-500 hover:bg-orange-600 text-white px-5 py-2.5 rounded-xl text-sm font-bold shadow-md transition flex items-center gap-2">
                     <span>+ إضافة مطعم جديد</span>
@@ -270,6 +292,48 @@
         </div>
     </div>
 
+    <!-- Modal 3: النسخ الاحتياطية والاستعادة -->
+    <div id="backupModal" class="fixed inset-0 bg-black/40 hidden items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl max-h-[90vh] flex flex-col gap-4">
+            <div class="flex justify-between items-center border-b pb-3">
+                <div class="flex items-center gap-3">
+                    <img id="backupModalLogo" src="" class="w-10 h-10 rounded-full border object-cover">
+                    <div>
+                        <h3 id="backupModalName" class="text-lg font-bold text-gray-800">--</h3>
+                        <p class="text-xs text-gray-500">النسخ الاحتياطية والاستعادة</p>
+                    </div>
+                </div>
+                <button onclick="closeBackupModal()" class="text-gray-400 hover:text-gray-600 font-bold">&times;</button>
+            </div>
+
+            <div id="backupModalBody" class="flex flex-col gap-4 min-h-0 flex-1">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <p class="text-xs text-gray-500">تُنشأ نسخة تلقائية قبل كل إيقاف أو تفعيل أو حذف أو استعادة. يمكنك أيضاً إنشاء نسخة يدوية في أي وقت.</p>
+                    <button id="createBackupBtn" onclick="createManualBackup()" class="shrink-0 bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-xl text-xs font-bold shadow-md transition active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed">💾 إنشاء نسخة الآن</button>
+                </div>
+
+                <div class="bg-purple-50 border border-purple-100 rounded-xl p-3 space-y-2">
+                    <p class="text-xs font-bold text-purple-800">خيارات الاستعادة</p>
+                    <label class="flex items-start gap-2 text-xs text-gray-700 cursor-pointer">
+                        <input type="checkbox" id="restoreKeepOrders" checked class="mt-0.5 accent-purple-600">
+                        <span>الاحتفاظ بالطلبات الحالية (لا يتم استبدالها بطلبات النسخة القديمة)</span>
+                    </label>
+                    <label class="flex items-start gap-2 text-xs text-gray-700 cursor-pointer">
+                        <input type="checkbox" id="restoreKeepStatus" checked class="mt-0.5 accent-purple-600">
+                        <span>الاحتفاظ بحالة الاشتراك الحالية (نشط / موقوف)</span>
+                    </label>
+                    <p class="text-[11px] text-gray-500">ألغِ التحديد للرجوع الكامل إلى حالة النسخة. تُحفظ دائماً نسخة من الحالة الحالية قبل أي استعادة، فيمكن التراجع عنها.</p>
+                </div>
+
+                <div id="backupList" class="overflow-y-auto min-h-[120px] divide-y divide-gray-100 border border-gray-100 rounded-xl"></div>
+            </div>
+
+            <div class="flex justify-end pt-2 border-t">
+                <button onclick="closeBackupModal()" class="px-4 py-2 rounded-xl text-xs font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200">إغلاق</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Firebase Initialization & Script Logic -->
     <script>
         const firebaseConfig = {
@@ -297,6 +361,8 @@
         let uploadedLogoBase64 = '';
         let isSubmitting = false;          // guard against double submission
         let restaurantsCache = {};         // restaurants keyed by id (avoids quoting issues in onclick)
+        let backupModalRestId = '';        // restaurant whose backups are shown in the backup modal
+        let restoreRunning = false;        // blocks concurrent restore / delete-backup operations
 
         /* =====================================================================
            ACCESS LAYER — embedded login, NO redirects, NO two-factor.
@@ -316,6 +382,7 @@
         let restaurantsRef = null;         // realtime listener handle (detached on logout)
         let resendTimer = null;
         let gateHideTimer = null;
+        let toastTimer = null;
         const gate = { notice: '', recheck: false };
 
         // ---- Session guard: first callback = restored session (or none). No redirects anywhere. ----
@@ -528,8 +595,11 @@
             dashboardStarted = false;
             restaurantsCache = {};
             currentRestId = '';
+            backupModalRestId = '';
+            restoreRunning = false;
             closeModal('addRestaurantModal');
             closeModal('settingsModal');
+            closeModal('backupModal');
 
             const shell = $('appShell');
             shell.classList.add('hidden');
@@ -541,6 +611,11 @@
             $('modalPassword').innerText = '--';
             $('modalRestName').innerText = '--';
             $('modalLogo').src = '';
+            $('backupList').innerHTML = '';
+            $('backupModalName').innerText = '--';
+            $('backupModalLogo').src = '';
+            $('backupModalBody').classList.remove('is-busy');
+            $('toast').classList.remove('show');
         }
 
         /* ===================== END ACCESS LAYER ===================== */
@@ -549,6 +624,12 @@
             const modal = document.getElementById(modalId);
             modal.classList.toggle('hidden');
             modal.classList.toggle('flex');
+        }
+
+        function openModal(modalId) {
+            const modal = document.getElementById(modalId);
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
         }
 
         function closeModal(modalId) {
@@ -564,6 +645,16 @@
                 .replace(/>/g, '&gt;')
                 .replace(/"/g, '&quot;')
                 .replace(/'/g, '&#39;');
+        }
+
+        function showToast(message, type) {
+            const el = $('toast');
+            el.textContent = message;
+            el.className = 'toast ' + (type === 'error' ? 'toast-error' : 'toast-success');
+            void el.offsetWidth;                         // restart the transition
+            el.classList.add('show');
+            clearTimeout(toastTimer);
+            toastTimer = setTimeout(() => el.classList.remove('show'), 3800);
         }
 
         function triggerFileInput() {
@@ -658,6 +749,300 @@
             document.getElementById('logoPreviewContainer').classList.add('hidden');
         }
 
+        // ---- Subscription status: ALL four fields are always written together ----
+        const STATUS_ACTIVE_FIELDS    = { active: true,  is_active: true,  suspended: false, status: 'active' };
+        const STATUS_SUSPENDED_FIELDS = { active: false, is_active: false, suspended: true,  status: 'suspended' };
+        const STATUS_FIELD_NAMES = Object.keys(STATUS_ACTIVE_FIELDS);
+
+        const BLOCKED_STATUSES = ['inactive', 'suspended', 'expired', 'disabled', 'blocked', 'cancelled', 'canceled'];
+        const isOffFlag = (v) => v === false || v === 0 || ['false', '0', 'no', 'off'].includes(String(v).trim().toLowerCase());
+
+        // Same rule as index.html: a restaurant is active only if NO flag says otherwise
+        function isRestaurantActive(rest) {
+            if (!rest) return false;
+            if (isOffFlag(rest.is_active) || isOffFlag(rest.active)) return false;
+            if (rest.suspended === true || String(rest.suspended).trim().toLowerCase() === 'true') return false;
+            if (rest.status != null && BLOCKED_STATUSES.includes(String(rest.status).trim().toLowerCase())) return false;
+            return true;
+        }
+
+        /* =====================================================================
+           BACKUP & RESTORE
+           restaurant_backups/{restId}/{timestamp}       -> full snapshot of restaurants/{restId}
+           restaurant_backups_meta/{restId}/{timestamp}  -> small descriptor (date, reason, size...)
+           Both are written in ONE atomic update. The list screen only reads the
+           small meta node, so opening it never downloads the heavy snapshots.
+           ===================================================================== */
+        const BACKUP_LIST_LIMIT = 50;
+
+        const BACKUP_REASONS = {
+            'manual':            { label: 'نسخة يدوية',          cls: 'bg-blue-100 text-blue-700' },
+            'before-suspend':    { label: 'قبل إيقاف الاشتراك',  cls: 'bg-red-100 text-red-700' },
+            'before-reactivate': { label: 'قبل تفعيل الاشتراك',  cls: 'bg-green-100 text-green-700' },
+            'before-delete':     { label: 'قبل حذف المطعم',      cls: 'bg-gray-200 text-gray-700' },
+            'before-restore':    { label: 'قبل استعادة',          cls: 'bg-purple-100 text-purple-700' }
+        };
+
+        function formatBackupDate(ts) {
+            const d = new Date(Number(ts));
+            if (isNaN(d.getTime())) return String(ts);
+            return d.toLocaleString('en-GB', {
+                year: 'numeric', month: '2-digit', day: '2-digit',
+                hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
+            });
+        }
+
+        function formatBackupSize(chars) {
+            const n = Number(chars) || 0;
+            return n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB' : (n / 1024).toFixed(1) + ' KB';
+        }
+
+        // Creates a full snapshot. Pass `preloadedData` to reuse data that was just read (avoids a second read).
+        async function createBackup(restId, reason, preloadedData) {
+            if (!restId) throw new Error('معرّف المطعم مفقود.');
+            const db = firebase.database();
+
+            let data = preloadedData;
+            if (data === undefined) {
+                const snap = await db.ref('restaurants/' + restId).once('value');
+                if (!snap.exists()) throw new Error('بيانات المطعم غير موجودة.');
+                data = snap.val();
+            }
+
+            const ts = String(Date.now());
+            const meta = {
+                createdAt: new Date().toISOString(),
+                reason: reason || 'manual',
+                restaurantName: (data && data.name) ? String(data.name) : '',
+                subscriptionActive: isRestaurantActive(data),
+                createdBy: (auth.currentUser && auth.currentUser.email) || '',
+                size: JSON.stringify(data).length
+            };
+
+            const updates = {};
+            updates['restaurant_backups/' + restId + '/' + ts] = data;
+            updates['restaurant_backups_meta/' + restId + '/' + ts] = meta;
+            await db.ref().update(updates);               // atomic: snapshot + descriptor together
+            return ts;
+        }
+
+        // Backup guard used before every change.
+        // allowSkip=true  -> if the backup fails the admin may choose to continue anyway.
+        // allowSkip=false -> if the backup fails the operation is cancelled (destructive actions).
+        async function ensureBackup(restId, reason, options) {
+            const allowSkip = !!(options && options.allowSkip);
+            try {
+                await createBackup(restId, reason);
+                return true;
+            } catch (err) {
+                console.error('Backup failed:', err);
+                const msg = 'فشل إنشاء النسخة الاحتياطية: ' + ((err && err.message) ? err.message : err);
+                if (allowSkip) {
+                    return confirm(msg + '\n\nهل تريد المتابعة بدون نسخة احتياطية؟');
+                }
+                alert(msg + '\n\nتم إلغاء العملية حفاظاً على البيانات.');
+                return false;
+            }
+        }
+
+        // ---- "Backup Data" button on each restaurant row ----
+        async function backupRestaurantNow(restId, btn) {
+            if (!dashboardStarted || !restId) return;
+            const original = btn ? btn.innerHTML : '';
+            if (btn) { btn.disabled = true; btn.innerHTML = '<span class="btn-spinner"></span>'; }
+            try {
+                await createBackup(restId, 'manual');
+                showToast('تم إنشاء نسخة احتياطية للمطعم بنجاح', 'success');
+                if (backupModalRestId === restId && !$('backupModal').classList.contains('hidden')) loadBackupList();
+            } catch (err) {
+                console.error(err);
+                showToast('فشل النسخ الاحتياطي: ' + ((err && err.message) ? err.message : err), 'error');
+            } finally {
+                if (btn) { btn.disabled = false; btn.innerHTML = original; }
+            }
+        }
+
+        // ---- "Restore Data" button: opens the backup list for a restaurant ----
+        function openBackupModal(restId) {
+            if (!dashboardStarted) return;
+            const rest = restaurantsCache[restId];
+            if (!rest) return;
+
+            backupModalRestId = restId;
+            $('backupModalName').innerText = rest.name || restId;
+            $('backupModalLogo').src = rest.logo || DEFAULT_LOGO;
+            $('restoreKeepOrders').checked = true;
+            $('restoreKeepStatus').checked = true;
+            $('backupModalBody').classList.remove('is-busy');
+            openModal('backupModal');
+            loadBackupList();
+        }
+
+        function closeBackupModal() {
+            if (restoreRunning) return;                  // never close in the middle of a restore
+            closeModal('backupModal');
+            backupModalRestId = '';
+            $('backupList').innerHTML = '';
+        }
+
+        function setBackupBusy(busy) {
+            restoreRunning = busy;
+            $('backupModalBody').classList.toggle('is-busy', busy);
+        }
+
+        async function loadBackupList() {
+            const forId = backupModalRestId;
+            const box = $('backupList');
+            if (!forId) return;
+            box.innerHTML = `<div class="py-10 text-center text-sm text-gray-400">جاري تحميل النسخ الاحتياطية...</div>`;
+
+            try {
+                const snap = await firebase.database()
+                    .ref('restaurant_backups_meta/' + forId)
+                    .orderByKey()
+                    .limitToLast(BACKUP_LIST_LIMIT)
+                    .once('value');
+
+                if (forId !== backupModalRestId) return;   // the modal moved on to another restaurant
+
+                const items = [];
+                snap.forEach((child) => { items.push({ ts: child.key, meta: child.val() || {} }); });
+                items.sort((a, b) => Number(b.ts) - Number(a.ts));
+
+                if (!items.length) {
+                    box.innerHTML = `<div class="py-10 text-center text-sm text-gray-400">لا توجد نسخ احتياطية لهذا المطعم بعد.</div>`;
+                    return;
+                }
+
+                box.innerHTML = items.map(({ ts, meta }) => {
+                    const reason = BACKUP_REASONS[meta.reason] || { label: meta.reason || 'نسخة', cls: 'bg-gray-100 text-gray-600' };
+                    const activeBadge = meta.subscriptionActive === false
+                        ? `<span class="bg-red-50 text-red-600 text-[11px] font-bold px-2 py-0.5 rounded-full">كان موقوفاً</span>`
+                        : `<span class="bg-green-50 text-green-600 text-[11px] font-bold px-2 py-0.5 rounded-full">كان نشطاً</span>`;
+                    const safeTs = escapeHtml(ts);
+                    return `
+                        <div class="py-3 px-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-gray-50 transition">
+                            <div class="min-w-0">
+                                <p class="text-sm font-bold text-gray-800" dir="ltr">${escapeHtml(formatBackupDate(ts))}</p>
+                                <div class="flex flex-wrap items-center gap-2 mt-1">
+                                    <span class="${reason.cls} text-[11px] font-bold px-2 py-0.5 rounded-full">${escapeHtml(reason.label)}</span>
+                                    ${activeBadge}
+                                    <span class="text-xs text-gray-400" dir="ltr">${escapeHtml(formatBackupSize(meta.size))}</span>
+                                    ${meta.createdBy ? `<span class="text-xs text-gray-400" dir="ltr">${escapeHtml(meta.createdBy)}</span>` : ''}
+                                </div>
+                            </div>
+                            <div class="flex gap-2 shrink-0">
+                                <button onclick="restoreBackup('${safeTs}')" class="bg-purple-500 hover:bg-purple-600 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition active:scale-95">♻️ استعادة</button>
+                                <button onclick="deleteBackup('${safeTs}')" class="bg-gray-100 hover:bg-red-50 text-gray-600 hover:text-red-600 px-3 py-1.5 rounded-lg text-xs font-semibold transition active:scale-95">حذف</button>
+                            </div>
+                        </div>`;
+                }).join('');
+            } catch (err) {
+                console.error('Failed to load backups:', err);
+                if (forId !== backupModalRestId) return;
+                box.innerHTML = `<div class="py-10 px-4 text-center text-sm text-red-500">تعذر تحميل النسخ الاحتياطية (${escapeHtml(err && err.code ? err.code : (err && err.message) || err)}). تحقق من قواعد قاعدة البيانات للمسارين restaurant_backups و restaurant_backups_meta.</div>`;
+            }
+        }
+
+        // ---- Manual backup from inside the backup modal ----
+        async function createManualBackup() {
+            if (!dashboardStarted || !backupModalRestId || restoreRunning) return;
+            const btn = $('createBackupBtn');
+            btn.disabled = true;
+            try {
+                await createBackup(backupModalRestId, 'manual');
+                showToast('تم إنشاء نسخة احتياطية بنجاح', 'success');
+                await loadBackupList();
+            } catch (err) {
+                console.error(err);
+                showToast('فشل النسخ الاحتياطي: ' + ((err && err.message) ? err.message : err), 'error');
+            } finally {
+                btn.disabled = false;
+            }
+        }
+
+        // ---- Restore: reverts restaurants/{restId} to a saved snapshot ----
+        async function restoreBackup(ts) {
+            if (!dashboardStarted || !backupModalRestId || restoreRunning) return;
+            const restId = backupModalRestId;
+            const keepOrders = $('restoreKeepOrders').checked;
+            const keepStatus = $('restoreKeepStatus').checked;
+
+            const confirmText =
+                `هل تريد استعادة نسخة ${formatBackupDate(ts)}؟\n\n` +
+                `سيتم أولاً حفظ نسخة احتياطية من الحالة الحالية، ثم استبدال بيانات المطعم بمحتوى هذه النسخة.\n` +
+                (keepOrders ? '• سيتم الاحتفاظ بالطلبات الحالية.\n' : '• ⚠️ سيتم استبدال الطلبات بما كان في النسخة.\n') +
+                (keepStatus ? '• سيتم الاحتفاظ بحالة الاشتراك الحالية.' : '• ⚠️ ستعود حالة الاشتراك إلى ما كانت عليه في النسخة.');
+            if (!confirm(confirmText)) return;
+
+            setBackupBusy(true);
+            try {
+                const db = firebase.database();
+
+                // 1) Load the chosen snapshot
+                const backupSnap = await db.ref('restaurant_backups/' + restId + '/' + ts).once('value');
+                if (!backupSnap.exists()) throw new Error('النسخة الاحتياطية غير موجودة أو فارغة.');
+                const restored = backupSnap.val();
+                if (restored === null || typeof restored !== 'object') throw new Error('محتوى النسخة الاحتياطية غير صالح.');
+
+                // 2) Safety backup of the CURRENT state (mandatory: restore is aborted if it fails)
+                const currentSnap = await db.ref('restaurants/' + restId).once('value');
+                const current = currentSnap.exists() ? currentSnap.val() : null;
+                if (current) {
+                    await createBackup(restId, 'before-restore', current);
+                }
+
+                // 3) Keep live operational data if requested
+                if (current) {
+                    if (keepOrders) {
+                        if (current.orders !== undefined) restored.orders = current.orders;
+                        else delete restored.orders;
+                    }
+                    if (keepStatus) {
+                        STATUS_FIELD_NAMES.forEach((k) => {
+                            if (current[k] !== undefined) restored[k] = current[k];
+                            else delete restored[k];
+                        });
+                    }
+                }
+
+                // 4) Revert the node
+                await db.ref('restaurants/' + restId).set(restored);
+
+                showToast('تمت استعادة بيانات المطعم بنجاح', 'success');
+            } catch (err) {
+                console.error('Restore failed:', err);
+                alert('فشلت الاستعادة: ' + ((err && err.message) ? err.message : err) + '\n\nلم يتم تغيير أي بيانات.');
+            } finally {
+                setBackupBusy(false);
+                if (backupModalRestId === restId) await loadBackupList();
+            }
+        }
+
+        // ---- Delete a single backup entry ----
+        async function deleteBackup(ts) {
+            if (!dashboardStarted || !backupModalRestId || restoreRunning) return;
+            const restId = backupModalRestId;
+            if (!confirm(`حذف نسخة ${formatBackupDate(ts)} نهائياً؟ لا يمكن التراجع عن هذا الإجراء.`)) return;
+
+            setBackupBusy(true);
+            try {
+                const updates = {};
+                updates['restaurant_backups/' + restId + '/' + ts] = null;
+                updates['restaurant_backups_meta/' + restId + '/' + ts] = null;
+                await firebase.database().ref().update(updates);
+                showToast('تم حذف النسخة الاحتياطية', 'success');
+            } catch (err) {
+                console.error(err);
+                showToast('تعذر حذف النسخة: ' + ((err && err.message) ? err.message : err), 'error');
+            } finally {
+                setBackupBusy(false);
+                if (backupModalRestId === restId) await loadBackupList();
+            }
+        }
+
+        /* ===================== END BACKUP & RESTORE ===================== */
+
         function loadRestaurantsAndStats() {
             if (!dashboardStarted) return;   // hard stop: never fetch before every check passed
             stopDashboard();                 // never stack two listeners
@@ -685,9 +1070,9 @@
                 Object.keys(data).forEach((restId) => {
                     totalCount++;
                     const rest = data[restId] || {};
-                    const status = rest.status || 'active';
+                    const active = isRestaurantActive(rest);
 
-                    if (status === 'active') {
+                    if (active) {
                         activeCount++;
                     } else {
                         inactiveCount++;
@@ -696,9 +1081,9 @@
                     const tables = parseInt(rest.tablesCount, 10) || 0;
                     totalTablesCount += tables;
 
-                    const statusBadge = status === 'inactive'
-                        ? `<span class="bg-red-100 text-red-700 text-xs font-bold px-2.5 py-1 rounded-full">متوقف</span>`
-                        : `<span class="bg-green-100 text-green-700 text-xs font-bold px-2.5 py-1 rounded-full">نشط</span>`;
+                    const statusBadge = active
+                        ? `<span class="bg-green-100 text-green-700 text-xs font-bold px-2.5 py-1 rounded-full">نشط</span>`
+                        : `<span class="bg-red-100 text-red-700 text-xs font-bold px-2.5 py-1 rounded-full">متوقف</span>`;
 
                     const logoUrl = rest.logo || DEFAULT_LOGO;
                     const safeId = escapeHtml(restId);
@@ -712,9 +1097,13 @@
                             <td class="py-4 px-4 text-gray-600">${tables || 6} طاولات</td>
                             <td class="py-4 px-4">${statusBadge}</td>
                             <td class="py-4 px-4 text-gray-600">${escapeHtml(rest.email)}</td>
-                            <td class="py-4 px-4 text-center space-x-2 space-x-reverse">
-                                <button onclick="generateQRs('${safeId}')" class="bg-green-500 hover:bg-green-600 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition">طباعة QR</button>
-                                <button onclick="openSettingsModal('${safeId}')" class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1.5 rounded-lg text-xs font-semibold transition">تعديل وإدارة</button>
+                            <td class="py-4 px-4">
+                                <div class="flex flex-wrap items-center justify-center gap-2">
+                                    <button onclick="generateQRs('${safeId}')" class="bg-green-500 hover:bg-green-600 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition">طباعة QR</button>
+                                    <button onclick="backupRestaurantNow('${safeId}', this)" class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition disabled:opacity-60 disabled:cursor-not-allowed">💾 نسخ احتياطي</button>
+                                    <button onclick="openBackupModal('${safeId}')" class="bg-purple-500 hover:bg-purple-600 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition">♻️ استعادة</button>
+                                    <button onclick="openSettingsModal('${safeId}')" class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1.5 rounded-lg text-xs font-semibold transition">تعديل وإدارة</button>
+                                </div>
                             </td>
                         </tr>
                     `;
@@ -725,6 +1114,12 @@
                 document.getElementById('statActiveRestaurants').innerText = activeCount;
                 document.getElementById('statInactiveRestaurants').innerText = inactiveCount;
                 document.getElementById('statTotalTables').innerText = totalTablesCount;
+
+                // Keep the open settings modal in sync with the database
+                if (currentRestId && restaurantsCache[currentRestId]) {
+                    isSubscriptionActive = isRestaurantActive(restaurantsCache[currentRestId]);
+                    updateSubButtonUI();
+                }
             }, (error) => {
                 console.error('Realtime listener rejected:', error);
                 tableBody.innerHTML = `<tr><td colspan="5" class="py-6 text-center text-red-500">تم رفض الوصول إلى البيانات (${escapeHtml(error && error.code)}). تحقق من صلاحيات الحساب وقواعد قاعدة البيانات.</td></tr>`;
@@ -795,7 +1190,7 @@
                     password: password,
                     tablesCount: tables,
                     logo: logo,
-                    status: 'active',
+                    ...STATUS_ACTIVE_FIELDS,   // active, is_active, suspended, status — consistent from day one
                     meta: {
                         createdAt: new Date().toISOString()
                     },
@@ -837,63 +1232,91 @@
             document.getElementById('modalPassword').innerText = rest.password || 'غير متاح';
             document.getElementById('modalLogo').src = rest.logo || DEFAULT_LOGO;
 
-            isSubscriptionActive = ((rest.status || 'active') === 'active');
+            isSubscriptionActive = isRestaurantActive(rest);
             updateSubButtonUI();
 
             toggleModal('settingsModal');
         }
 
-        function toggleSubscriptionStatus() {
-            isSubscriptionActive = !isSubscriptionActive;
-            const newStatus = isSubscriptionActive ? 'active' : 'inactive';
+        // Writes the 4 status fields in ONE atomic update (all succeed or none)
+        async function setSubscriptionStatus(restId, activate) {
+            if (!dashboardStarted || !restId) return;
+            const fields = activate ? STATUS_ACTIVE_FIELDS : STATUS_SUSPENDED_FIELDS;
+            await firebase.database().ref('restaurants/' + restId).update(fields);
+        }
 
-            firebase.database().ref('restaurants/' + currentRestId).update({
-                status: newStatus
-            }).then(() => {
+        async function toggleSubscriptionStatus() {
+            if (!currentRestId) return;
+            const btn = document.getElementById('toggleSubBtn');
+            const targetActive = !isSubscriptionActive;      // the state we are moving to
+
+            btn.disabled = true;
+            try {
+                // Automatic backup BEFORE the status change (admin may continue without one if it fails)
+                const backedUp = await ensureBackup(
+                    currentRestId,
+                    targetActive ? 'before-reactivate' : 'before-suspend',
+                    { allowSkip: true }
+                );
+                if (!backedUp) return;
+
+                await setSubscriptionStatus(currentRestId, targetActive);
+                isSubscriptionActive = targetActive;          // update local state only after the DB confirms
+                alert(targetActive
+                    ? "تم تفعيل اشتراك المطعم بنجاح!"
+                    : "تم إيقاف الاشتراك وقفل واجهات المطعم بنجاح!");
+            } catch (error) {
+                console.error(error);
+                alert("حدث خطأ: " + (error && error.message ? error.message : error));
+            } finally {
+                btn.disabled = false;
                 updateSubButtonUI();
-                alert(isSubscriptionActive ? "تم تفعيل اشتراك المطعم بنجاح!" : "تم إيقاف الاشتراك وقفل واجهات المطعم بنجاح!");
-            }).catch((error) => {
-                isSubscriptionActive = !isSubscriptionActive; // revert on failure
-                updateSubButtonUI();
-                alert("حدث خطأ: " + error.message);
-            });
+            }
         }
 
         function updateSubButtonUI() {
             const btn = document.getElementById('toggleSubBtn');
+            const base = "px-3 py-1.5 rounded-lg text-xs font-bold text-white transition disabled:opacity-60 disabled:cursor-not-allowed ";
             if (isSubscriptionActive) {
                 btn.innerText = "إيقاف الاشتراك 🔴";
-                btn.className = "px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-red-500 hover:bg-red-600 transition";
+                btn.className = base + "bg-red-500 hover:bg-red-600";
             } else {
                 btn.innerText = "تفعيل الاشتراك 🟢";
-                btn.className = "px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-green-500 hover:bg-green-600 transition";
+                btn.className = base + "bg-green-500 hover:bg-green-600";
             }
         }
 
-        // ---- Delete restaurant ----
-        function deleteRestaurant() {
+        // ---- Delete restaurant (a backup is mandatory first; the backups themselves are kept) ----
+        async function deleteRestaurant() {
             if (!currentRestId) return;
 
-            if (!confirm('Are you sure you want to delete this restaurant? This action cannot be undone.')) {
+            if (!confirm('Are you sure you want to delete this restaurant? A backup copy will be saved first, but the restaurant will disappear from this list.')) {
                 return;
             }
 
             const deleteBtn = document.getElementById('deleteRestaurantBtn');
+            const restId = currentRestId;
             deleteBtn.disabled = true;
 
-            firebase.database().ref('restaurants/' + currentRestId).remove()
-                .then(() => {
-                    currentRestId = '';
-                    closeModal('settingsModal');
-                    // The table and stats refresh automatically via the realtime listener
-                    alert('Restaurant deleted successfully');
-                })
-                .catch((error) => {
-                    alert('حدث خطأ أثناء الحذف: ' + error.message);
-                })
-                .finally(() => {
-                    deleteBtn.disabled = false;
-                });
+            try {
+                const backedUp = await ensureBackup(restId, 'before-delete');   // strict: no backup, no delete
+                if (!backedUp) return;
+
+                await firebase.database().ref('restaurants/' + restId).remove();
+
+                currentRestId = '';
+                closeModal('settingsModal');
+                if (backupModalRestId === restId) {
+                    backupModalRestId = '';
+                    closeModal('backupModal');
+                }
+                // The table and stats refresh automatically via the realtime listener
+                alert('Restaurant deleted successfully. Its backups were kept under restaurant_backups.');
+            } catch (error) {
+                alert('حدث خطأ أثناء الحذف: ' + (error && error.message ? error.message : error));
+            } finally {
+                deleteBtn.disabled = false;
+            }
         }
 
         function loginAsRestaurant() {
