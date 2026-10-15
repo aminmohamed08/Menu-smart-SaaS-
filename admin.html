@@ -34,7 +34,7 @@
 </head>
 <body class="min-h-screen">
 
-    <!-- ===== Security gate: login (email + password) + SMS 2FA, all on this page. Covers everything until auth + admin claim + 2FA succeed ===== -->
+    <!-- ===== Login gate: email + password, admin claim, verified email. Covers everything until all checks pass ===== -->
     <div id="securityGate" class="fixed inset-0 z-[100] bg-gray-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-live="polite">
         <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-gray-100 space-y-4">
 
@@ -42,7 +42,7 @@
                 <div class="w-10 h-10 rounded-xl bg-orange-500 flex items-center justify-center text-white font-bold shadow-md">🔒</div>
                 <div>
                     <h2 class="text-base font-bold text-gray-800">تسجيل دخول المشرف العام</h2>
-                    <p class="text-xs text-gray-500">الدخول محمي بكلمة السر والتحقق بخطوتين عبر SMS</p>
+                    <p class="text-xs text-gray-500">الدخول بالبريد الإلكتروني وكلمة السر لحسابات المشرفين فقط</p>
                 </div>
             </div>
 
@@ -70,35 +70,17 @@
                 <button type="submit" class="gate-primary w-full px-5 py-2.5 rounded-xl text-sm font-bold text-white bg-orange-500 hover:bg-orange-600 shadow-md transition active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed">تسجيل الدخول</button>
             </form>
 
-            <!-- Step: enroll phone (first time: no second factor registered yet) -->
-            <form id="gateStep-phone" class="gate-step hidden space-y-3" onsubmit="submitPhoneStep(event)">
-                <p class="text-sm text-gray-600">لم يتم ربط أي هاتف بحسابك بعد. أدخل رقم هاتفك بالصيغة الدولية لتفعيل التحقق بخطوتين.</p>
-                <div>
-                    <label class="block text-xs font-semibold text-gray-600 mb-1">رقم الهاتف</label>
-                    <input type="tel" id="gatePhone" dir="ltr" placeholder="+212600000000" autocomplete="tel"
-                        class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm text-left focus:outline-none focus:border-orange-500 transition">
+            <!-- Step: email not verified -->
+            <div id="gateStep-unverified" class="gate-step hidden space-y-3 text-center py-2">
+                <div class="w-14 h-14 mx-auto rounded-full bg-orange-50 text-orange-500 flex items-center justify-center text-2xl">✉️</div>
+                <p class="text-sm font-bold text-gray-800">يجب تأكيد بريدك الإلكتروني قبل الدخول</p>
+                <p class="text-xs text-gray-500">أرسلنا رسالة تأكيد إلى <span id="gateUnverifiedEmail" dir="ltr" class="font-bold text-gray-700"></span>. افتح الرابط في الرسالة ثم اضغط «تحققت من بريدي».</p>
+                <div class="flex flex-col gap-2 pt-1">
+                    <button type="button" onclick="gateRecheck()" class="gate-primary w-full px-5 py-2.5 rounded-xl text-xs font-bold text-white bg-orange-500 hover:bg-orange-600 shadow-md transition active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed">تحققت من بريدي</button>
+                    <button type="button" id="gateResendBtn" onclick="gateResendVerification()" class="w-full px-4 py-2 rounded-xl text-xs font-semibold text-orange-600 bg-orange-50 hover:bg-orange-100 transition active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed">إعادة إرسال رسالة التأكيد</button>
+                    <button type="button" onclick="gateCancel()" class="w-full px-4 py-2 rounded-xl text-xs font-semibold text-gray-500 bg-gray-100 hover:bg-gray-200 transition active:scale-95">تسجيل الخروج</button>
                 </div>
-                <div class="flex justify-between gap-2 pt-1">
-                    <button type="button" onclick="gateCancel()" class="px-4 py-2 rounded-xl text-xs font-semibold text-gray-500 bg-gray-100 hover:bg-gray-200 transition active:scale-95">إلغاء وتسجيل الخروج</button>
-                    <button type="submit" class="gate-primary px-5 py-2 rounded-xl text-xs font-bold text-white bg-orange-500 hover:bg-orange-600 shadow-md transition active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed">إرسال الرمز</button>
-                </div>
-            </form>
-
-            <!-- Step: SMS code (enrollment or login challenge) -->
-            <form id="gateStep-code" class="gate-step hidden space-y-3" onsubmit="submitCodeStep(event)">
-                <p class="text-sm text-gray-600">أدخل رمز التحقق المكوّن من 6 أرقام المرسل إلى <span id="gateCodeTarget" dir="ltr" class="font-bold text-gray-800"></span></p>
-                <div>
-                    <input type="text" id="gateCode" dir="ltr" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="000000"
-                        class="w-full border border-gray-200 rounded-xl px-3 py-3 text-xl tracking-[0.5em] text-center font-bold focus:outline-none focus:border-orange-500 transition">
-                </div>
-                <div class="flex justify-between items-center gap-2 pt-1">
-                    <button type="button" onclick="gateCancel()" class="px-4 py-2 rounded-xl text-xs font-semibold text-gray-500 bg-gray-100 hover:bg-gray-200 transition active:scale-95">إلغاء</button>
-                    <div class="flex items-center gap-2">
-                        <button type="button" id="gateResendBtn" onclick="gateResend()" class="px-3 py-2 rounded-xl text-xs font-semibold text-orange-600 bg-orange-50 hover:bg-orange-100 transition active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed">إعادة إرسال الرمز</button>
-                        <button type="submit" class="gate-primary px-5 py-2 rounded-xl text-xs font-bold text-white bg-orange-500 hover:bg-orange-600 shadow-md transition active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed">تأكيد</button>
-                    </div>
-                </div>
-            </form>
+            </div>
 
             <!-- Step: access denied (signed in, but no { admin: true } claim) -->
             <div id="gateStep-denied" class="gate-step hidden space-y-3 text-center py-2">
@@ -107,13 +89,10 @@
                 <p class="text-xs text-gray-500">هذا الحساب غير مصرّح له بإدارة المنصة.</p>
                 <button type="button" onclick="gateCancel()" class="px-5 py-2 rounded-xl text-xs font-bold text-white bg-gray-700 hover:bg-gray-800 transition active:scale-95">تسجيل الخروج</button>
             </div>
-
-            <!-- Invisible reCAPTCHA host (required by Firebase phone verification) -->
-            <div id="recaptchaHost"></div>
         </div>
     </div>
 
-    <!-- ===== Dashboard shell: stays hidden until auth + admin claim + 2FA are verified ===== -->
+    <!-- ===== Dashboard shell: stays hidden until login + admin claim + verified email succeed ===== -->
     <div id="appShell" class="hidden flex-col min-h-screen">
 
     <!-- Navbar -->
@@ -312,7 +291,7 @@
             '<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50"><rect width="50" height="50" fill="#FED7AA"/><text x="25" y="32" font-size="22" text-anchor="middle" fill="#EA580C" font-family="Arial">R</text></svg>'
         );
 
-        // Dashboard state (declared before the security layer so sign-out cleanup can reset it safely)
+        // Dashboard state (declared before the access layer so sign-out cleanup can reset it safely)
         let currentRestId = '';
         let isSubscriptionActive = true;
         let uploadedLogoBase64 = '';
@@ -320,27 +299,24 @@
         let restaurantsCache = {};         // restaurants keyed by id (avoids quoting issues in onclick)
 
         /* =====================================================================
-           SECURITY LAYER — fully embedded, NO redirects.
-           Flow:  email + password  →  { admin: true } claim check  →  SMS 2FA
+           ACCESS LAYER — embedded login, NO redirects, NO two-factor.
+           Flow:  email + password  →  { admin: true } claim  →  verified email
            The dashboard (#appShell) stays hidden and no data is fetched until
-           all three succeed (see unlockDashboard()).
+           all checks pass (see unlockDashboard()).
            ===================================================================== */
-        // Only accounts carrying the custom claim { admin: true } may open this panel.
-        // Set it server-side (Firebase Admin SDK). Set to false only while you are migrating.
-        const REQUIRE_ADMIN_CLAIM = true;
+        const REQUIRE_ADMIN_CLAIM = true;       // only accounts with the custom claim { admin: true }
+        const REQUIRE_EMAIL_VERIFIED = true;    // email must be verified
         const RESEND_COOLDOWN_SECONDS = 30;
 
         const auth = firebase.auth();
         const $ = (id) => document.getElementById(id);
 
-        let dashboardStarted = false;      // true once auth + admin claim + 2FA are verified
+        let dashboardStarted = false;      // true once every check has passed
         let accessCheckRunning = false;    // avoids overlapping checks
         let restaurantsRef = null;         // realtime listener handle (detached on logout)
-        let recaptchaVerifier = null;
         let resendTimer = null;
         let gateHideTimer = null;
-        // gate.mode: 'enroll' (registering a phone) | 'challenge' (login second factor)
-        const gate = { mode: null, verificationId: null, resolver: null, phone: '', notice: '' };
+        const gate = { notice: '', recheck: false };
 
         // ---- Session guard: first callback = restored session (or none). No redirects anywhere. ----
         auth.onAuthStateChanged((user) => {
@@ -364,11 +340,10 @@
         }
 
         function showGateStep(step) {
-            ['checking', 'login', 'phone', 'code', 'denied'].forEach((s) => {
+            ['checking', 'login', 'unverified', 'denied'].forEach((s) => {
                 $('gateStep-' + s).classList.toggle('hidden', s !== step);
             });
-            const focusMap = { login: 'gateEmail', phone: 'gatePhone', code: 'gateCode' };
-            if (focusMap[step]) setTimeout(() => { const el = $(focusMap[step]); if (el) el.focus(); }, 60);
+            if (step === 'login') setTimeout(() => { const el = $('gateEmail'); if (el) el.focus(); }, 60);
         }
 
         function showGateError(message) {
@@ -395,20 +370,12 @@
                 'auth/invalid-credential': 'البريد الإلكتروني أو كلمة السر غير صحيحة.',
                 'auth/invalid-login-credentials': 'البريد الإلكتروني أو كلمة السر غير صحيحة.',
                 'auth/user-disabled': 'هذا الحساب موقوف.',
-                'auth/invalid-phone-number': 'رقم الهاتف غير صالح. استعمل الصيغة الدولية مثل ‎+212600000000',
-                'auth/missing-phone-number': 'المرجو إدخال رقم الهاتف.',
-                'auth/invalid-verification-code': 'رمز التحقق غير صحيح.',
-                'auth/missing-verification-code': 'المرجو إدخال رمز التحقق.',
-                'auth/code-expired': 'انتهت صلاحية الرمز. اطلب رمزاً جديداً.',
                 'auth/too-many-requests': 'محاولات كثيرة. المرجو الانتظار قليلاً ثم المحاولة مجدداً.',
-                'auth/quota-exceeded': 'تم تجاوز حصة الرسائل. حاول لاحقاً.',
                 'auth/requires-recent-login': 'انتهت صلاحية الجلسة. سجّل الدخول من جديد.',
-                'auth/unverified-email': 'يجب تأكيد البريد الإلكتروني للحساب قبل تفعيل التحقق بخطوتين.',
-                'auth/second-factor-already-in-use': 'هذا الهاتف مرتبط بالفعل بالحساب.',
-                'auth/operation-not-allowed': 'تسجيل الدخول أو التحقق بخطوتين غير مفعّل في Firebase (Authentication / Identity Platform ← SMS MFA).',
+                'auth/operation-not-allowed': 'تسجيل الدخول بالبريد وكلمة السر غير مفعّل في Firebase (Authentication ← Sign-in method).',
                 'auth/unauthorized-domain': 'هذا النطاق غير مصرّح به في Firebase (Authentication ← Settings ← Authorized domains).',
                 'auth/network-request-failed': 'مشكلة في الاتصال بالشبكة.',
-                'auth/captcha-check-failed': 'فشل التحقق من reCAPTCHA. أعد المحاولة.'
+                'auth/multi-factor-auth-required': 'هذا الحساب لديه تحقق بخطوتين مفعّل داخل Firebase. عطّل خاصية Multi-factor (SMS) من لوحة Firebase أو أزل العامل الثاني من الحساب ثم أعد المحاولة.'
             };
             return map[e && e.code] || ('حدث خطأ: ' + ((e && e.message) || e));
         }
@@ -421,9 +388,6 @@
         }
 
         function showLogin() {
-            gate.mode = null;
-            gate.resolver = null;
-            gate.verificationId = null;
             clearInterval(resendTimer);
             showGateError('');
             showGateInfo(gate.notice);
@@ -432,7 +396,7 @@
             setGateVisible(true);
         }
 
-        // ---- Step 1: email + password ----
+        // ---- Step 1: email + password (signInWithEmailAndPassword only) ----
         async function submitLoginStep(e) {
             e.preventDefault();
             gate.notice = '';
@@ -446,39 +410,29 @@
             setGateBusy(true);
             try {
                 await auth.signInWithEmailAndPassword(email, password);
-                // Success without a second-factor request: onAuthStateChanged -> evaluateAccess() continues the flow.
+                // Success: onAuthStateChanged -> evaluateAccess() continues the flow.
             } catch (err) {
-                if (err.code === 'auth/multi-factor-auth-required') {
-                    // Account has a registered phone: Firebase now requires the SMS code.
-                    try {
-                        gate.mode = 'challenge';
-                        gate.resolver = err.resolver;
-                        await sendChallengeCode();
-                    } catch (sendErr) {
-                        console.error(sendErr);
-                        gate.resolver = null;
-                        showGateError(authErrorMessage(sendErr));
-                    }
-                } else {
-                    console.error(err);
-                    showGateError(authErrorMessage(err));
-                }
+                console.error(err);
+                showGateError(authErrorMessage(err));
             } finally {
                 $('gatePassword').value = '';
                 setGateBusy(false);
             }
         }
 
-        // ---- Step 2: what does the signed-in session still need? ----
+        // ---- Step 2: admin claim + verified email, then open the dashboard ----
         async function evaluateAccess(user) {
             if (accessCheckRunning || dashboardStarted) return;
             accessCheckRunning = true;
+            const wasRecheck = gate.recheck;
+            gate.recheck = false;
             showGateError(''); showGateInfo('');
             showGateStep('checking');
             setGateVisible(true);
             try {
-                // Force-refresh so the latest claims (admin, second factor) come from the server
-                const token = await user.getIdTokenResult(true);
+                await user.reload();                                   // fresh emailVerified value
+                const current = auth.currentUser || user;
+                const token = await current.getIdTokenResult(true);    // fresh custom claims from the server
 
                 // Custom Claim check: { admin: true }
                 if (REQUIRE_ADMIN_CLAIM && token.claims.admin !== true) {
@@ -486,22 +440,15 @@
                     return;
                 }
 
-                // 2FA already completed for this session
-                const secondFactor = token.claims.firebase && token.claims.firebase.sign_in_second_factor;
-                if (secondFactor) {
-                    unlockDashboard();
+                // Verified email check
+                if (REQUIRE_EMAIL_VERIFIED && !current.emailVerified) {
+                    $('gateUnverifiedEmail').textContent = current.email || '';
+                    showGateStep('unverified');
+                    if (wasRecheck) showGateError('لم يتم تأكيد البريد بعد. افتح الرابط في الرسالة ثم أعد المحاولة.');
                     return;
                 }
 
-                const enrolled = user.multiFactor ? user.multiFactor.enrolledFactors : [];
-                if (enrolled.length === 0) {
-                    gate.mode = 'enroll';          // first time: register a phone
-                    showGateStep('phone');
-                } else {
-                    // Phone registered but this session skipped the challenge: force a clean sign-in with 2FA.
-                    gate.notice = 'سجّل الدخول من جديد لإكمال التحقق بخطوتين.';
-                    await logout();
-                }
+                unlockDashboard();
             } catch (err) {
                 console.error('Access check failed:', err);
                 gate.notice = '';
@@ -510,14 +457,6 @@
             } finally {
                 accessCheckRunning = false;
             }
-        }
-
-        // ---- reCAPTCHA (invisible) — rebuilt for every SMS request ----
-        function getRecaptcha() {
-            if (recaptchaVerifier) { try { recaptchaVerifier.clear(); } catch (e) {} }
-            $('recaptchaHost').innerHTML = '<div id="recaptchaContainer"></div>';
-            recaptchaVerifier = new firebase.auth.RecaptchaVerifier('recaptchaContainer', { size: 'invisible' });
-            return recaptchaVerifier;
         }
 
         function startResendCooldown() {
@@ -531,103 +470,32 @@
                 if (left <= 0) {
                     clearInterval(resendTimer);
                     btn.disabled = false;
-                    btn.textContent = 'إعادة إرسال الرمز';
+                    btn.textContent = 'إعادة إرسال رسالة التأكيد';
                 } else {
                     btn.textContent = `إعادة الإرسال (${left})`;
                 }
             }, 1000);
         }
 
-        function openCodeStep(targetLabel) {
-            $('gateCodeTarget').textContent = targetLabel;
-            $('gateCode').value = '';
-            showGateStep('code');
-            startResendCooldown();
-        }
-
-        // ---- Enrollment: register a phone as second factor (first time only) ----
-        async function sendEnrollmentCode(phone) {
+        async function gateResendVerification() {
+            showGateError(''); showGateInfo('');
             const user = auth.currentUser;
             if (!user) return;
-            const session = await user.multiFactor.getSession();
-            const provider = new firebase.auth.PhoneAuthProvider();
-            gate.verificationId = await provider.verifyPhoneNumber({ phoneNumber: phone, session: session }, getRecaptcha());
-            gate.phone = phone;
-            openCodeStep(phone);
-        }
-
-        async function submitPhoneStep(e) {
-            e.preventDefault();
-            showGateError(''); showGateInfo('');
-            const phone = $('gatePhone').value.trim().replace(/\s+/g, '');
-            if (!/^\+[1-9]\d{7,14}$/.test(phone)) {
-                showGateError(authErrorMessage({ code: 'auth/invalid-phone-number' }));
-                return;
-            }
-            setGateBusy(true);
             try {
-                await sendEnrollmentCode(phone);
+                await user.sendEmailVerification();
+                showGateInfo('تم إرسال رسالة التأكيد. تحقق من بريدك (وجرّب مجلد الرسائل غير المرغوب فيها).');
+                startResendCooldown();
             } catch (err) {
                 console.error(err);
                 showGateError(authErrorMessage(err));
-            } finally {
-                setGateBusy(false);
             }
         }
 
-        // ---- Challenge: SMS code to the registered phone (triggered by the login step) ----
-        async function sendChallengeCode() {
-            const hint = gate.resolver.hints.find((h) => h.factorId === firebase.auth.PhoneMultiFactorGenerator.FACTOR_ID) || gate.resolver.hints[0];
-            const provider = new firebase.auth.PhoneAuthProvider();
-            gate.verificationId = await provider.verifyPhoneNumber({ multiFactorHint: hint, session: gate.resolver.session }, getRecaptcha());
-            openCodeStep(hint.phoneNumber || '');
-        }
-
-        // ---- Step 3: verify the SMS code (enrollment or challenge) ----
-        async function submitCodeStep(e) {
-            e.preventDefault();
-            showGateError(''); showGateInfo('');
-            const code = $('gateCode').value.trim();
-            if (!/^\d{6}$/.test(code)) {
-                showGateError(authErrorMessage({ code: 'auth/invalid-verification-code' }));
-                return;
-            }
-            setGateBusy(true);
-            try {
-                const credential = firebase.auth.PhoneAuthProvider.credential(gate.verificationId, code);
-                const assertion = firebase.auth.PhoneMultiFactorGenerator.assertion(credential);
-
-                if (gate.mode === 'enroll') {
-                    await auth.currentUser.multiFactor.enroll(assertion, 'Super Admin phone');
-                    // Phone registered. A fresh sign-in is required so the session carries the 2FA claim.
-                    gate.notice = 'تم ربط الهاتف بنجاح. سجّل الدخول من جديد لإكمال التحقق بخطوتين.';
-                    await logout();
-                } else {
-                    await gate.resolver.resolveSignIn(assertion);
-                    clearInterval(resendTimer);
-                    if (auth.currentUser) await evaluateAccess(auth.currentUser);   // token now carries the 2FA claim
-                }
-            } catch (err) {
-                console.error(err);
-                showGateError(authErrorMessage(err));
-            } finally {
-                setGateBusy(false);
-            }
-        }
-
-        async function gateResend() {
-            showGateError(''); showGateInfo('');
-            setGateBusy(true);
-            try {
-                if (gate.mode === 'enroll') await sendEnrollmentCode(gate.phone);
-                else await sendChallengeCode();
-                showGateInfo('تم إرسال رمز جديد.');
-            } catch (err) {
-                console.error(err);
-                showGateError(authErrorMessage(err));
-            } finally {
-                setGateBusy(false);
-            }
+        async function gateRecheck() {
+            const user = auth.currentUser;
+            if (!user) return;
+            gate.recheck = true;
+            await evaluateAccess(user);
         }
 
         function gateCancel() {
@@ -640,7 +508,6 @@
             if (dashboardStarted) return;
             dashboardStarted = true;
             clearInterval(resendTimer);
-            if (recaptchaVerifier) { try { recaptchaVerifier.clear(); } catch (e) {} }
             gate.notice = '';
 
             const shell = $('appShell');
@@ -648,7 +515,7 @@
             shell.classList.add('flex');
             setGateVisible(false);
 
-            loadRestaurantsAndStats();     // protected: executed only after auth + admin claim + 2FA
+            loadRestaurantsAndStats();     // protected: executed only after every check passed
             initDragAndDropEvents();
         }
 
@@ -676,7 +543,7 @@
             $('modalLogo').src = '';
         }
 
-        /* ===================== END SECURITY LAYER ===================== */
+        /* ===================== END ACCESS LAYER ===================== */
 
         function toggleModal(modalId) {
             const modal = document.getElementById(modalId);
@@ -792,7 +659,7 @@
         }
 
         function loadRestaurantsAndStats() {
-            if (!dashboardStarted) return;   // hard stop: never fetch before auth + admin claim + 2FA
+            if (!dashboardStarted) return;   // hard stop: never fetch before every check passed
             stopDashboard();                 // never stack two listeners
             const tableBody = document.getElementById('restaurantsTableBody');
             restaurantsRef = firebase.database().ref('restaurants');
