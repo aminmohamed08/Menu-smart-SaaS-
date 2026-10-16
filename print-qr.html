@@ -161,34 +161,39 @@
             document.getElementById('loadingBox').style.display = 'none';
         }
 
+        // Only allow data:image/* and https:// URLs as image sources (database content is not trusted).
+        function safeImageSrc(url) {
+            return (typeof url === 'string' && /^(data:image\/(png|jpe?g|gif|webp|svg\+xml)[;,]|https:\/\/)/i.test(url))
+                ? url : DEFAULT_LOGO;
+        }
+
         /**
-         * Find the restaurant:
-         *  1) by key  -> /restaurants/{id}
-         *  2) fallback: orderByChild('id').equalTo(id)
-         *  3) fallback: orderByChild('name').equalTo(id)
-         * Returns { key, data } or null.
+         * Find the restaurant WITHOUT needing a login.
+         *
+         * The database rules do not allow reading the whole /restaurants/{id} node unless the viewer is
+         * the admin or the owner, but these child fields are publicly readable:
+         *   name, logo, tablesCount, active
+         * So each field is read on its own path. This works for any visitor, signed in or not.
+         *
+         * Returns { key, data: { name, logo, tablesCount, active } } or null if the restaurant does not exist.
          */
         async function findRestaurant(restaurantId) {
+            // Firebase keys can't contain . # $ [ ] / — reject anything that can't be a push key.
+            if (/[.#$\[\]\/]/.test(restaurantId)) return null;
+
             const db = firebase.database();
+            const base = 'restaurants/' + restaurantId + '/';
+            const fields = ['name', 'logo', 'tablesCount', 'active'];
 
-            const direct = await db.ref('restaurants/' + restaurantId).once('value');
-            if (direct.exists() && direct.val() && typeof direct.val() === 'object') {
-                return { key: direct.key, data: direct.val() };
-            }
+            const snaps = await Promise.all(fields.map((f) => db.ref(base + f).once('value')));
 
-            for (const field of ['id', 'name']) {
-                try {
-                    const snap = await db.ref('restaurants').orderByChild(field).equalTo(restaurantId).limitToFirst(1).once('value');
-                    if (snap.exists()) {
-                        let found = null;
-                        snap.forEach((child) => { found = { key: child.key, data: child.val() }; return true; });
-                        if (found) return found;
-                    }
-                } catch (err) {
-                    console.warn('Fallback query by "' + field + '" failed:', err);
-                }
-            }
-            return null;
+            const data = {};
+            fields.forEach((f, i) => { data[f] = snaps[i].val(); });
+
+            // A restaurant must at least have a name or a table count to be considered existing.
+            if (data.name == null && data.tablesCount == null) return null;
+
+            return { key: restaurantId, data: data };
         }
 
         // Wait until qrcodejs has produced a loaded <img> in every box
@@ -216,7 +221,10 @@
         // ---------- Main ----------
         window.addEventListener('DOMContentLoaded', async () => {
             const params = new URLSearchParams(window.location.search);
-            const restaurantId = (params.get('restaurant_id') || '').trim();
+            // Accepts ?restaurant_id=... (admin dashboard) and the shorter ?rid=... / ?id=... / ?resto=...
+            const restaurantId = (
+                params.get('restaurant_id') || params.get('rid') || params.get('id') || params.get('resto') || ''
+            ).trim();
 
             if (!restaurantId) {
                 showError('خطأ: لم يتم تحديد المطعم!');
@@ -232,7 +240,7 @@
 
                 const { key: restKey, data: rest } = result;
                 const restaurantName = rest.name || 'المطعم';
-                const logoUrl = rest.logo || DEFAULT_LOGO;
+                const logoUrl = safeImageSrc(rest.logo);
                 const tablesCount = parseInt(rest.tablesCount, 10);
 
                 if (!Number.isInteger(tablesCount) || tablesCount < 1) {
@@ -319,8 +327,9 @@
                 }
 
             } catch (error) {
-                console.error(error);
-                showError('حدث خطأ أثناء تحميل البيانات.');
+                console.error('QR page failed:', error);
+                const code = (error && (error.code || error.message)) ? ` (${error.code || error.message})` : '';
+                showError('حدث خطأ أثناء تحميل البيانات' + code);
             }
         });
     </script>
