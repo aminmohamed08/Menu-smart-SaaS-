@@ -30,7 +30,6 @@
         .gate-step { animation: gateIn .35s cubic-bezier(0.16, 1, 0.3, 1); }
         @keyframes gateIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 
-        /* Toast notifications (composite-only animation) */
         .toast {
             position: fixed; bottom: 24px; left: 50%; z-index: 120;
             max-width: calc(100vw - 32px); padding: 10px 18px; border-radius: 12px;
@@ -42,7 +41,6 @@
         .toast-success { background: #16A34A; }
         .toast-error { background: #DC2626; }
 
-        /* Backup modal busy state while a restore / delete is running */
         #backupModalBody { transition: opacity .2s cubic-bezier(0.16, 1, 0.3, 1); }
         #backupModalBody.is-busy { opacity: .55; pointer-events: none; }
 
@@ -53,10 +51,9 @@
 </head>
 <body class="min-h-screen">
 
-    <!-- Toast -->
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-    <!-- ===== Login gate: email + password, admin claim, verified email. Covers everything until all checks pass ===== -->
+    <!-- ===== Login gate ===== -->
     <div id="securityGate" class="fixed inset-0 z-[100] bg-gray-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-live="polite">
         <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-gray-100 space-y-4">
 
@@ -71,13 +68,11 @@
             <p id="gateError" class="hidden text-xs font-semibold text-red-600 bg-red-50 border border-red-100 rounded-xl px-3 py-2"></p>
             <p id="gateInfo" class="hidden text-xs font-semibold text-green-700 bg-green-50 border border-green-100 rounded-xl px-3 py-2"></p>
 
-            <!-- Step: checking session -->
             <div id="gateStep-checking" class="gate-step flex flex-col items-center gap-3 py-6">
                 <div class="gate-spinner"></div>
                 <p class="text-sm text-gray-500 font-medium">جاري التحقق من الجلسة...</p>
             </div>
 
-            <!-- Step: login (email + password) -->
             <form id="gateStep-login" class="gate-step hidden space-y-3" onsubmit="submitLoginStep(event)" novalidate>
                 <div>
                     <label class="block text-xs font-semibold text-gray-600 mb-1">البريد الإلكتروني</label>
@@ -92,7 +87,6 @@
                 <button type="submit" class="gate-primary w-full px-5 py-2.5 rounded-xl text-sm font-bold text-white bg-orange-500 hover:bg-orange-600 shadow-md transition active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed">تسجيل الدخول</button>
             </form>
 
-            <!-- Step: email not verified -->
             <div id="gateStep-unverified" class="gate-step hidden space-y-3 text-center py-2">
                 <div class="w-14 h-14 mx-auto rounded-full bg-orange-50 text-orange-500 flex items-center justify-center text-2xl">✉️</div>
                 <p class="text-sm font-bold text-gray-800">يجب تأكيد بريدك الإلكتروني قبل الدخول</p>
@@ -104,7 +98,6 @@
                 </div>
             </div>
 
-            <!-- Step: access denied (signed in, but no { admin: true } claim) -->
             <div id="gateStep-denied" class="gate-step hidden space-y-3 text-center py-2">
                 <div class="w-14 h-14 mx-auto rounded-full bg-red-50 text-red-500 flex items-center justify-center text-2xl">⛔</div>
                 <p class="text-sm font-bold text-gray-800">ليست لديك صلاحية الوصول إلى لوحة المشرف العام</p>
@@ -114,10 +107,9 @@
         </div>
     </div>
 
-    <!-- ===== Dashboard shell: stays hidden until login + admin claim + verified email succeed ===== -->
+    <!-- ===== Dashboard shell ===== -->
     <div id="appShell" class="hidden flex-col min-h-screen">
 
-    <!-- Navbar -->
     <header class="bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center shadow-sm">
         <div class="flex items-center space-x-3 space-x-reverse">
             <div class="w-10 h-10 rounded-xl bg-orange-500 flex items-center justify-center text-white font-bold text-xl shadow-md">SA</div>
@@ -128,14 +120,12 @@
         </div>
         <div class="flex items-center gap-3">
             <button class="bg-orange-50 text-orange-600 px-4 py-2 rounded-xl text-sm font-bold border border-orange-200">اللوحة الرئيسية</button>
-            <button onclick="logout()" class="bg-red-50 hover:bg-red-100 text-red-600 px-4 py-2 rounded-xl text-sm font-semibold transition">تسجيل الخروج</button>
+            <button onclick="logout()" class="bg-red-50 hover:bg-red-100 text-red-600 px-4 py-2 rounded-xl text-sm font-semibold transition active:scale-95">تسجيل الخروج</button>
         </div>
     </header>
 
-    <!-- Main Container -->
     <main class="flex-1 max-w-7xl w-full mx-auto p-6 space-y-6">
 
-        <!-- Real-time Stats Overview -->
         <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
             <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
                 <p class="text-sm text-gray-500 font-medium">إجمالي المطاعم المسجلة</p>
@@ -159,19 +149,17 @@
             </div>
         </div>
 
-        <!-- Action Bar & Restaurant Table -->
         <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
             <div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
                 <div>
                     <h2 class="text-xl font-bold text-gray-800">قائمة المطاعم والعملاء</h2>
                     <p class="text-sm text-gray-500">إدارة حسابات المطاعم، الاشتراكات، والنسخ الاحتياطية، والولوج السريع للوحة التحكم</p>
                 </div>
-                <button onclick="toggleModal('addRestaurantModal')" class="bg-orange-500 hover:bg-orange-600 text-white px-5 py-2.5 rounded-xl text-sm font-bold shadow-md transition flex items-center gap-2">
+                <button onclick="toggleModal('addRestaurantModal')" class="bg-orange-500 hover:bg-orange-600 text-white px-5 py-2.5 rounded-xl text-sm font-bold shadow-md transition active:scale-95 flex items-center gap-2">
                     <span>+ إضافة مطعم جديد</span>
                 </button>
             </div>
 
-            <!-- Table -->
             <div class="overflow-x-auto">
                 <table class="w-full text-right border-collapse">
                     <thead>
@@ -206,22 +194,26 @@
             <form id="addRestaurantForm" onsubmit="handleAddRestaurant(event)" class="space-y-3">
                 <div>
                     <label class="block text-xs font-semibold text-gray-600 mb-1">اسم المطعم</label>
-                    <input type="text" id="newRestName" required placeholder="مثال: Restaurant Le Palmier" class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-orange-500">
+                    <input type="text" id="newRestName" required maxlength="80" placeholder="مثال: Restaurant Le Palmier" class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-orange-500">
                 </div>
                 <div>
                     <label class="block text-xs font-semibold text-gray-600 mb-1">البريد الإلكتروني (Firebase Auth)</label>
-                    <input type="email" id="newRestEmail" required placeholder="client@restaurant.com" class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-orange-500">
+                    <input type="email" id="newRestEmail" required autocomplete="off" dir="ltr" placeholder="client@restaurant.com" class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm text-left focus:outline-none focus:border-orange-500">
+                    <p class="text-[11px] text-gray-400 mt-1">ستُرسل رسالة تأكيد البريد الإلكتروني إلى هذا العنوان بعد إنشاء الحساب.</p>
                 </div>
                 <div>
-                    <label class="block text-xs font-semibold text-gray-600 mb-1">كلمة السر</label>
-                    <input type="text" id="newRestPassword" required placeholder="••••••••" class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-orange-500">
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">كلمة السر (6 أحرف على الأقل)</label>
+                    <div class="relative">
+                        <input type="password" id="newRestPassword" required minlength="6" autocomplete="new-password" dir="ltr" placeholder="••••••••" class="w-full border border-gray-200 rounded-xl pl-3 pr-16 py-2 text-sm text-left focus:outline-none focus:border-orange-500">
+                        <button type="button" id="toggleNewPasswordBtn" onclick="toggleNewPasswordVisibility()" aria-pressed="false" class="absolute inset-y-0 right-2 my-auto h-7 px-2 rounded-lg text-[11px] font-bold text-gray-500 hover:bg-gray-100 transition active:scale-95">إظهار</button>
+                    </div>
+                    <p class="text-[11px] text-gray-400 mt-1">تُرسل كلمة السر إلى Firebase Auth فقط ولا تُحفظ في قاعدة البيانات. سلّمها للعميل الآن، إذ لن يمكن عرضها لاحقاً.</p>
                 </div>
                 <div>
                     <label class="block text-xs font-semibold text-gray-600 mb-1">عدد الطاولات المبدئي</label>
-                    <input type="number" id="newRestTables" value="6" required min="1" class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-orange-500">
+                    <input type="number" id="newRestTables" value="6" required min="1" max="500" class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-orange-500">
                 </div>
 
-                <!-- Drag & Drop Logo Upload -->
                 <div>
                     <label class="block text-xs font-semibold text-gray-600 mb-1">شعار المطعم (Logo)</label>
                     <div id="dropZone" onclick="triggerFileInput()" class="drop-zone rounded-xl p-4 text-center cursor-pointer bg-gray-50 hover:bg-gray-100 flex flex-col items-center justify-center">
@@ -237,8 +229,8 @@
                 </div>
 
                 <div class="flex justify-end gap-2 pt-2">
-                    <button type="button" id="cancelAddBtn" onclick="toggleModal('addRestaurantModal')" class="px-4 py-2 rounded-xl text-xs font-semibold text-gray-500 bg-gray-100 hover:bg-gray-200">إلغاء</button>
-                    <button type="submit" id="submitRestaurantBtn" class="px-5 py-2 rounded-xl text-xs font-bold text-white bg-orange-500 hover:bg-orange-600 shadow-md flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed">
+                    <button type="button" id="cancelAddBtn" onclick="toggleModal('addRestaurantModal')" class="px-4 py-2 rounded-xl text-xs font-semibold text-gray-500 bg-gray-100 hover:bg-gray-200 transition active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed">إلغاء</button>
+                    <button type="submit" id="submitRestaurantBtn" class="px-5 py-2 rounded-xl text-xs font-bold text-white bg-orange-500 hover:bg-orange-600 shadow-md flex items-center gap-2 transition active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed">
                         <span id="submitBtnSpinner" class="btn-spinner hidden"></span>
                         <span id="submitBtnText">حفظ وإنشاء الحساب</span>
                     </button>
@@ -252,7 +244,7 @@
         <div class="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4">
             <div class="flex justify-between items-center border-b pb-3">
                 <div class="flex items-center gap-3">
-                    <img id="modalLogo" src="" class="w-10 h-10 rounded-full border object-cover">
+                    <img id="modalLogo" alt="" class="w-10 h-10 rounded-full border object-cover">
                     <div>
                         <h3 id="modalRestName" class="text-lg font-bold text-gray-800">--</h3>
                         <p class="text-xs text-gray-500">تفاصيل الحساب والاشتراك</p>
@@ -262,10 +254,11 @@
             </div>
 
             <div class="space-y-3 text-sm">
-                <div class="bg-gray-50 p-3 rounded-xl space-y-1">
+                <div class="bg-gray-50 p-3 rounded-xl space-y-2">
                     <p class="text-xs text-gray-500">بيانات تسجيل الدخول للعميل:</p>
-                    <p class="font-medium">البريد: <span id="modalEmail" class="font-bold text-gray-800">--</span></p>
-                    <p class="font-medium">كلمة السر: <span id="modalPassword" class="font-bold text-orange-600">--</span></p>
+                    <p class="font-medium">البريد: <span id="modalEmail" class="font-bold text-gray-800" dir="ltr">--</span></p>
+                    <p class="font-medium">كلمة السر: <span class="font-bold text-gray-500">محمية في Firebase Auth (غير مخزنة)</span></p>
+                    <button id="resetPasswordBtn" onclick="sendRestaurantPasswordReset()" class="w-full bg-orange-50 hover:bg-orange-100 text-orange-600 py-2 rounded-lg text-xs font-bold transition active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed">📧 إرسال رابط إعادة تعيين كلمة السر</button>
                 </div>
 
                 <div class="flex justify-between items-center bg-gray-50 p-3 rounded-xl">
@@ -274,20 +267,20 @@
                 </div>
 
                 <div class="pt-2">
-                    <button id="enterAsKitchenBtn" onclick="loginAsRestaurant()" class="w-full bg-green-600 hover:bg-green-700 text-white py-3 rounded-xl font-bold shadow-md flex items-center justify-center gap-2 transition">
+                    <button id="enterAsKitchenBtn" onclick="loginAsRestaurant()" class="w-full bg-green-600 hover:bg-green-700 text-white py-3 rounded-xl font-bold shadow-md flex items-center justify-center gap-2 transition active:scale-95">
                         <span>🔑 الدخول المباشر إلى لوحة المطبخ للتحكم بالمنيو</span>
                     </button>
                 </div>
 
                 <div>
-                    <button id="deleteRestaurantBtn" onclick="deleteRestaurant()" class="w-full bg-red-600 hover:bg-red-700 text-white py-3 rounded-xl font-bold shadow-md flex items-center justify-center gap-2 transition disabled:opacity-60 disabled:cursor-not-allowed">
+                    <button id="deleteRestaurantBtn" onclick="deleteRestaurant()" class="w-full bg-red-600 hover:bg-red-700 text-white py-3 rounded-xl font-bold shadow-md flex items-center justify-center gap-2 transition active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed">
                         <span>🗑️ حذف المطعم (Delete Restaurant)</span>
                     </button>
                 </div>
             </div>
 
             <div class="flex justify-end pt-2 border-t">
-                <button onclick="toggleModal('settingsModal')" class="px-4 py-2 rounded-xl text-xs font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200">إغلاق</button>
+                <button onclick="toggleModal('settingsModal')" class="px-4 py-2 rounded-xl text-xs font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 transition active:scale-95">إغلاق</button>
             </div>
         </div>
     </div>
@@ -297,7 +290,7 @@
         <div class="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl max-h-[90vh] flex flex-col gap-4">
             <div class="flex justify-between items-center border-b pb-3">
                 <div class="flex items-center gap-3">
-                    <img id="backupModalLogo" src="" class="w-10 h-10 rounded-full border object-cover">
+                    <img id="backupModalLogo" alt="" class="w-10 h-10 rounded-full border object-cover">
                     <div>
                         <h3 id="backupModalName" class="text-lg font-bold text-gray-800">--</h3>
                         <p class="text-xs text-gray-500">النسخ الاحتياطية والاستعادة</p>
@@ -308,7 +301,7 @@
 
             <div id="backupModalBody" class="flex flex-col gap-4 min-h-0 flex-1">
                 <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    <p class="text-xs text-gray-500">تُنشأ نسخة تلقائية قبل كل إيقاف أو تفعيل أو حذف أو استعادة. يمكنك أيضاً إنشاء نسخة يدوية في أي وقت.</p>
+                    <p class="text-xs text-gray-500">تُنشأ نسخة تلقائية قبل كل إيقاف أو تفعيل أو حذف أو استعادة. يمكنك أيضاً إنشاء نسخة يدوية في أي وقت. يتم الاحتفاظ بآخر 5 نسخ فقط، وتُحذف الأقدم تلقائياً.</p>
                     <button id="createBackupBtn" onclick="createManualBackup()" class="shrink-0 bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-xl text-xs font-bold shadow-md transition active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed">💾 إنشاء نسخة الآن</button>
                 </div>
 
@@ -322,14 +315,14 @@
                         <input type="checkbox" id="restoreKeepStatus" checked class="mt-0.5 accent-purple-600">
                         <span>الاحتفاظ بحالة الاشتراك الحالية (نشط / موقوف)</span>
                     </label>
-                    <p class="text-[11px] text-gray-500">ألغِ التحديد للرجوع الكامل إلى حالة النسخة. تُحفظ دائماً نسخة من الحالة الحالية قبل أي استعادة، فيمكن التراجع عنها.</p>
+                    <p class="text-[11px] text-gray-500">ألغِ التحديد للرجوع الكامل إلى حالة النسخة. يبقى ربط حساب الدخول (البريد و uid) دائماً كما هو الآن. تُحفظ دائماً نسخة من الحالة الحالية قبل أي استعادة، فيمكن التراجع عنها.</p>
                 </div>
 
                 <div id="backupList" class="overflow-y-auto min-h-[120px] divide-y divide-gray-100 border border-gray-100 rounded-xl"></div>
             </div>
 
             <div class="flex justify-end pt-2 border-t">
-                <button onclick="closeBackupModal()" class="px-4 py-2 rounded-xl text-xs font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200">إغلاق</button>
+                <button onclick="closeBackupModal()" class="px-4 py-2 rounded-xl text-xs font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 transition active:scale-95">إغلاق</button>
             </div>
         </div>
     </div>
@@ -346,52 +339,89 @@
             appId: "1:329584219503:web:f085858228b35a5145049a"
         };
 
+        // Primary app: the Super Admin session lives here.
         if (!firebase.apps.length) {
             firebase.initializeApp(firebaseConfig);
         }
 
-        // Inline placeholder (no external request needed)
+        // Secondary app: used ONLY to create restaurant Auth accounts (keeps the admin signed in on the primary app).
+        let secondaryApp;
+        try {
+            secondaryApp = firebase.app('Secondary');
+        } catch (e) {
+            secondaryApp = firebase.initializeApp(firebaseConfig, 'Secondary');
+        }
+        const secondaryAuth = secondaryApp.auth();
+
         const DEFAULT_LOGO = 'data:image/svg+xml;utf8,' + encodeURIComponent(
             '<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50"><rect width="50" height="50" fill="#FED7AA"/><text x="25" y="32" font-size="22" text-anchor="middle" fill="#EA580C" font-family="Arial">R</text></svg>'
         );
 
-        // Dashboard state (declared before the access layer so sign-out cleanup can reset it safely)
+        // Dashboard state
         let currentRestId = '';
         let isSubscriptionActive = true;
         let uploadedLogoBase64 = '';
-        let isSubmitting = false;          // guard against double submission
-        let restaurantsCache = {};         // restaurants keyed by id (avoids quoting issues in onclick)
-        let backupModalRestId = '';        // restaurant whose backups are shown in the backup modal
-        let restoreRunning = false;        // blocks concurrent restore / delete-backup operations
+        let isSubmitting = false;
+        let restaurantsCache = {};
+        let backupModalRestId = '';
+        let restoreRunning = false;
 
-        /* =====================================================================
-           ACCESS LAYER — embedded login, NO redirects, NO two-factor.
-           Flow:  email + password  →  { admin: true } claim  →  verified email
-           The dashboard (#appShell) stays hidden and no data is fetched until
-           all checks pass (see unlockDashboard()).
-           ===================================================================== */
-        const REQUIRE_ADMIN_CLAIM = true;       // only accounts with the custom claim { admin: true }
-        const REQUIRE_EMAIL_VERIFIED = true;    // email must be verified
+        /* ===================== ACCESS LAYER ===================== */
+        const REQUIRE_ADMIN_CLAIM = true;
+        const REQUIRE_EMAIL_VERIFIED = true;
         const RESEND_COOLDOWN_SECONDS = 30;
+
+        // ---- Management / Override Mode hand-off to the restaurant dashboard ----
+        // The hint below is NOT a credential: it only says which restaurant the admin wants to open.
+        // The dashboard still verifies the admin's own Firebase session (claim admin:true), and the
+        // database rules decide what that session may read or write.
+        const OVERRIDE_STORAGE_KEY = 'adminOverride';
+        const RESTAURANT_DASHBOARD_URL = 'index.html';
+        function clearOverrideHint() {
+            try { sessionStorage.removeItem(OVERRIDE_STORAGE_KEY); } catch (e) { /* storage unavailable */ }
+        }
 
         const auth = firebase.auth();
         const $ = (id) => document.getElementById(id);
 
-        let dashboardStarted = false;      // true once every check has passed
-        let accessCheckRunning = false;    // avoids overlapping checks
-        let restaurantsRef = null;         // realtime listener handle (detached on logout)
+        let dashboardStarted = false;
+        let dashboardUserUid = null;
+        let accessCheckRunning = false;
+        let accessCheckUserUid = null;
+        let accessCheckVersion = 0;        // invalidates stale async checks after account changes/logout
+        let restaurantsRef = null;
         let resendTimer = null;
         let gateHideTimer = null;
         let toastTimer = null;
-        const gate = { notice: '', recheck: false };
+        // notice/error survive the logout -> onAuthStateChanged(null) -> showLogin() round trip
+        const gate = { notice: '', error: '', recheck: false };
 
-        // ---- Session guard: first callback = restored session (or none). No redirects anywhere. ----
         auth.onAuthStateChanged((user) => {
             if (!user) {
-                handleSignedOut();                // no session -> embedded login form
+                handleSignedOut();
                 return;
             }
-            if (!dashboardStarted) evaluateAccess(user);
+            if (dashboardStarted && dashboardUserUid !== user.uid) {
+                stopDashboard();
+                lockDashboard();
+            }
+            if (!dashboardStarted || dashboardUserUid !== user.uid) evaluateAccess(user);
+        });
+
+        // Re-validate the admin claim whenever the ID token refreshes (about hourly),
+        // so a revoked claim closes an already-open dashboard.
+        auth.onIdTokenChanged(async (user) => {
+            if (!user || !dashboardStarted || dashboardUserUid !== user.uid) return;
+            try {
+                const t = await user.getIdTokenResult();
+                if (!dashboardStarted || dashboardUserUid !== user.uid) return;
+                if (REQUIRE_ADMIN_CLAIM && t.claims.admin !== true) {
+                    gate.error = 'تم سحب صلاحية المشرف من هذا الحساب.';
+                    await logout();
+                }
+            } catch (err) {
+                console.warn('Token re-validation failed:', err);
+            }
         });
 
         function setGateVisible(visible) {
@@ -442,13 +472,18 @@
                 'auth/operation-not-allowed': 'تسجيل الدخول بالبريد وكلمة السر غير مفعّل في Firebase (Authentication ← Sign-in method).',
                 'auth/unauthorized-domain': 'هذا النطاق غير مصرّح به في Firebase (Authentication ← Settings ← Authorized domains).',
                 'auth/network-request-failed': 'مشكلة في الاتصال بالشبكة.',
+                'auth/email-already-in-use': 'هذا البريد الإلكتروني مسجّل مسبقاً في Firebase Auth. إن لم يكن لأي مطعم في القائمة فهو حساب يتيم، احذفه من Firebase Console ← Authentication ثم أعد المحاولة.',
+                'auth/weak-password': 'كلمة السر ضعيفة. يجب أن تتكون من 6 أحرف على الأقل.',
                 'auth/multi-factor-auth-required': 'هذا الحساب لديه تحقق بخطوتين مفعّل داخل Firebase. عطّل خاصية Multi-factor (SMS) من لوحة Firebase أو أزل العامل الثاني من الحساب ثم أعد المحاولة.'
             };
             return map[e && e.code] || ('حدث خطأ: ' + ((e && e.message) || e));
         }
 
-        // ---- Signed-out state: wipe dashboard data, show the embedded login form ----
         function handleSignedOut() {
+            accessCheckVersion++;
+            accessCheckRunning = false;
+            accessCheckUserUid = null;
+            gate.recheck = false;
             stopDashboard();
             lockDashboard();
             showLogin();
@@ -456,17 +491,17 @@
 
         function showLogin() {
             clearInterval(resendTimer);
-            showGateError('');
+            showGateError(gate.error);       // kept until the next login attempt (not consumed here)
             showGateInfo(gate.notice);
             $('gatePassword').value = '';
             showGateStep('login');
             setGateVisible(true);
         }
 
-        // ---- Step 1: email + password (signInWithEmailAndPassword only) ----
         async function submitLoginStep(e) {
             e.preventDefault();
             gate.notice = '';
+            gate.error = '';
             showGateError(''); showGateInfo('');
             const email = $('gateEmail').value.trim().toLowerCase();
             const password = $('gatePassword').value;
@@ -477,7 +512,6 @@
             setGateBusy(true);
             try {
                 await auth.signInWithEmailAndPassword(email, password);
-                // Success: onAuthStateChanged -> evaluateAccess() continues the flow.
             } catch (err) {
                 console.error(err);
                 showGateError(authErrorMessage(err));
@@ -487,27 +521,38 @@
             }
         }
 
-        // ---- Step 2: admin claim + verified email, then open the dashboard ----
         async function evaluateAccess(user) {
-            if (accessCheckRunning || dashboardStarted) return;
+            if (!user) return;
+            if (dashboardStarted && dashboardUserUid === user.uid) return;
+            if (accessCheckRunning && accessCheckUserUid === user.uid) return;
+
+            const checkVersion = ++accessCheckVersion;
             accessCheckRunning = true;
+            accessCheckUserUid = user.uid;
             const wasRecheck = gate.recheck;
             gate.recheck = false;
             showGateError(''); showGateInfo('');
             showGateStep('checking');
             setGateVisible(true);
-            try {
-                await user.reload();                                   // fresh emailVerified value
-                const current = auth.currentUser || user;
-                const token = await current.getIdTokenResult(true);    // fresh custom claims from the server
 
-                // Custom Claim check: { admin: true }
+            const checkIsCurrent = () =>
+                checkVersion === accessCheckVersion &&
+                !!auth.currentUser && auth.currentUser.uid === user.uid;
+
+            try {
+                await user.reload();
+                if (!checkIsCurrent()) return;
+
+                const current = auth.currentUser;
+                if (!current || current.uid !== user.uid) return;
+                const token = await current.getIdTokenResult(true);
+                if (!checkIsCurrent()) return;
+
                 if (REQUIRE_ADMIN_CLAIM && token.claims.admin !== true) {
                     showGateStep('denied');
                     return;
                 }
 
-                // Verified email check
                 if (REQUIRE_EMAIL_VERIFIED && !current.emailVerified) {
                     $('gateUnverifiedEmail').textContent = current.email || '';
                     showGateStep('unverified');
@@ -515,14 +560,19 @@
                     return;
                 }
 
-                unlockDashboard();
+                if (!checkIsCurrent()) return;
+                unlockDashboard(user.uid);
             } catch (err) {
+                if (!checkIsCurrent()) return;
                 console.error('Access check failed:', err);
                 gate.notice = '';
+                gate.error = authErrorMessage(err);   // shown by showLogin() after the sign-out completes
                 await logout();
-                showGateError(authErrorMessage(err));
             } finally {
-                accessCheckRunning = false;
+                if (checkVersion === accessCheckVersion) {
+                    accessCheckRunning = false;
+                    accessCheckUserUid = null;
+                }
             }
         }
 
@@ -563,26 +613,36 @@
             if (!user) return;
             gate.recheck = true;
             await evaluateAccess(user);
+            gate.recheck = false;   // never leave a stale flag if the check was skipped as a duplicate
         }
 
         function gateCancel() {
             gate.notice = '';
+            gate.error = '';
             logout();
         }
 
-        // ---- Only here does the dashboard become visible and start loading data ----
-        function unlockDashboard() {
-            if (dashboardStarted) return;
+        function unlockDashboard(expectedUid) {
+            const current = auth.currentUser;
+            if (!current || !expectedUid || current.uid !== expectedUid) return;
+            if (dashboardStarted && dashboardUserUid === expectedUid) return;
+            if (dashboardStarted && dashboardUserUid !== expectedUid) {
+                stopDashboard();
+                lockDashboard();
+            }
             dashboardStarted = true;
+            dashboardUserUid = expectedUid;
+            clearOverrideHint();            // coming back from Override Mode ends it
             clearInterval(resendTimer);
             gate.notice = '';
+            gate.error = '';
 
             const shell = $('appShell');
             shell.classList.remove('hidden');
             shell.classList.add('flex');
             setGateVisible(false);
 
-            loadRestaurantsAndStats();     // protected: executed only after every check passed
+            loadRestaurantsAndStats();
             initDragAndDropEvents();
         }
 
@@ -590,9 +650,10 @@
             if (restaurantsRef) { restaurantsRef.off(); restaurantsRef = null; }
         }
 
-        // ---- Hide the dashboard again and wipe every piece of rendered data ----
         function lockDashboard() {
             dashboardStarted = false;
+            dashboardUserUid = null;
+            clearOverrideHint();
             restaurantsCache = {};
             currentRestId = '';
             backupModalRestId = '';
@@ -600,6 +661,7 @@
             closeModal('addRestaurantModal');
             closeModal('settingsModal');
             closeModal('backupModal');
+            resetAddRestaurantForm();       // never leave a typed password / logo in the DOM after logout
 
             const shell = $('appShell');
             shell.classList.add('hidden');
@@ -608,12 +670,11 @@
             $('restaurantsTableBody').innerHTML = `<tr><td colspan="5" class="py-6 text-center text-gray-400">جاري تحميل المطاعم...</td></tr>`;
             ['statTotalRestaurants', 'statActiveRestaurants', 'statInactiveRestaurants', 'statTotalTables'].forEach((id) => { $(id).innerText = '0'; });
             $('modalEmail').innerText = '--';
-            $('modalPassword').innerText = '--';
             $('modalRestName').innerText = '--';
-            $('modalLogo').src = '';
+            $('modalLogo').src = DEFAULT_LOGO;
             $('backupList').innerHTML = '';
             $('backupModalName').innerText = '--';
-            $('backupModalLogo').src = '';
+            $('backupModalLogo').src = DEFAULT_LOGO;
             $('backupModalBody').classList.remove('is-busy');
             $('toast').classList.remove('show');
         }
@@ -647,14 +708,32 @@
                 .replace(/'/g, '&#39;');
         }
 
+        // Only allow data:image/* and https:// URLs as image sources (database content is not trusted).
+        function safeImageSrc(url) {
+            return (typeof url === 'string' && /^(data:image\/(png|jpe?g|gif|webp|svg\+xml)[;,]|https:\/\/)/i.test(url))
+                ? url : DEFAULT_LOGO;
+        }
+
         function showToast(message, type) {
             const el = $('toast');
             el.textContent = message;
             el.className = 'toast ' + (type === 'error' ? 'toast-error' : 'toast-success');
-            void el.offsetWidth;                         // restart the transition
+            void el.offsetWidth;
             el.classList.add('show');
             clearTimeout(toastTimer);
             toastTimer = setTimeout(() => el.classList.remove('show'), 3800);
+        }
+
+        function setNewPasswordVisible(visible) {
+            const input = $('newRestPassword');
+            const btn = $('toggleNewPasswordBtn');
+            input.type = visible ? 'text' : 'password';
+            btn.textContent = visible ? 'إخفاء' : 'إظهار';
+            btn.setAttribute('aria-pressed', visible ? 'true' : 'false');
+        }
+
+        function toggleNewPasswordVisibility() {
+            setNewPasswordVisible($('newRestPassword').type === 'password');
         }
 
         function triggerFileInput() {
@@ -669,7 +748,7 @@
 
         let dragEventsBound = false;
         function initDragAndDropEvents() {
-            if (dragEventsBound) return;      // the dashboard can be unlocked again after a re-login
+            if (dragEventsBound) return;
             dragEventsBound = true;
             const dropZone = document.getElementById('dropZone');
 
@@ -690,8 +769,7 @@
             });
 
             dropZone.addEventListener('drop', (e) => {
-                const dt = e.dataTransfer;
-                const files = dt.files;
+                const files = e.dataTransfer.files;
                 if (files && files.length > 0) {
                     processFile(files[0]);
                 }
@@ -699,21 +777,36 @@
         }
 
         function processFile(file) {
-            if (!file.type.startsWith('image/')) {
+            if (!file || !file.type || !file.type.startsWith('image/')) {
                 alert('المرجو اختيار صورة صالحة فقط');
+                return;
+            }
+            const MAX_LOGO_FILE_BYTES = 5 * 1024 * 1024;
+            if (file.size > MAX_LOGO_FILE_BYTES) {
+                alert('حجم الصورة كبير بزاف. اختار صورة أقل من 5 ميغابايت.');
                 return;
             }
 
             const reader = new FileReader();
+            reader.onerror = () => alert('تعذر قراءة الصورة. جرّب ملفاً آخر.');
             reader.onload = (e) => {
                 const img = new Image();
+                img.onerror = () => alert('ملف الصورة غير صالح أو لا يمكن فتحه.');
                 img.onload = () => {
                     const canvas = document.createElement('canvas');
                     const ctx = canvas.getContext('2d');
+                    if (!ctx) {
+                        alert('المتصفح لا يدعم معالجة الصورة حالياً.');
+                        return;
+                    }
                     const maxWidth = 200;
                     const maxHeight = 200;
                     let width = img.width;
                     let height = img.height;
+                    if (!width || !height) {
+                        alert('تعذر تحديد أبعاد الصورة. جرّب ملفاً آخر.');
+                        return;
+                    }
 
                     if (width > height) {
                         if (width > maxWidth) {
@@ -727,9 +820,12 @@
                         }
                     }
 
-                    canvas.width = width;
-                    canvas.height = height;
-                    ctx.drawImage(img, 0, 0, width, height);
+                    canvas.width = Math.max(1, Math.round(width));
+                    canvas.height = Math.max(1, Math.round(height));
+                    // JPEG has no alpha channel: paint white first so transparent PNG logos don't turn black.
+                    ctx.fillStyle = '#FFFFFF';
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 
                     uploadedLogoBase64 = canvas.toDataURL('image/jpeg', 0.8);
                     document.getElementById('logoPreviewImg').src = uploadedLogoBase64;
@@ -744,7 +840,7 @@
         function removeLogo() {
             uploadedLogoBase64 = '';
             document.getElementById('logoFileInput').value = '';
-            document.getElementById('logoPreviewImg').src = '';
+            document.getElementById('logoPreviewImg').removeAttribute('src');
             document.getElementById('logoFileName').innerText = '';
             document.getElementById('logoPreviewContainer').classList.add('hidden');
         }
@@ -757,7 +853,6 @@
         const BLOCKED_STATUSES = ['inactive', 'suspended', 'expired', 'disabled', 'blocked', 'cancelled', 'canceled'];
         const isOffFlag = (v) => v === false || v === 0 || ['false', '0', 'no', 'off'].includes(String(v).trim().toLowerCase());
 
-        // Same rule as index.html: a restaurant is active only if NO flag says otherwise
         function isRestaurantActive(rest) {
             if (!rest) return false;
             if (isOffFlag(rest.is_active) || isOffFlag(rest.active)) return false;
@@ -768,12 +863,14 @@
 
         /* =====================================================================
            BACKUP & RESTORE
-           restaurant_backups/{restId}/{timestamp}       -> full snapshot of restaurants/{restId}
-           restaurant_backups_meta/{restId}/{timestamp}  -> small descriptor (date, reason, size...)
-           Both are written in ONE atomic update. The list screen only reads the
-           small meta node, so opening it never downloads the heavy snapshots.
+           restaurant_backups/{restId}/{pushKey}       -> full snapshot of restaurants/{restId}
+           restaurant_backups_meta/{restId}/{pushKey}  -> small descriptor
+           The key is a Firebase push ID (NOT a numeric timestamp). Its first 8 characters
+           encode the creation time, which is decoded below for display and sorting.
            ===================================================================== */
         const BACKUP_LIST_LIMIT = 50;
+        const BACKUP_RETENTION_LIMIT = 5;   // keep only the newest N backups per restaurant
+        const PUSH_CHARS = '-0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz';
 
         const BACKUP_REASONS = {
             'manual':            { label: 'نسخة يدوية',          cls: 'bg-blue-100 text-blue-700' },
@@ -783,21 +880,44 @@
             'before-restore':    { label: 'قبل استعادة',          cls: 'bg-purple-100 text-purple-700' }
         };
 
-        function formatBackupDate(ts) {
-            const d = new Date(Number(ts));
-            if (isNaN(d.getTime())) return String(ts);
+        function pushIdToMillis(id) {
+            if (typeof id !== 'string' || id.length < 8) return NaN;
+            let t = 0;
+            for (let i = 0; i < 8; i++) {
+                const idx = PUSH_CHARS.indexOf(id.charAt(i));
+                if (idx < 0) return NaN;
+                t = t * 64 + idx;
+            }
+            return t;
+        }
+
+        // Supports both legacy numeric timestamp keys and push-ID keys.
+        function backupTimeMs(key) {
+            const n = Number(key);
+            return (Number.isFinite(n) && n > 0) ? n : pushIdToMillis(String(key));
+        }
+
+        function formatBackupDate(key) {
+            const d = new Date(backupTimeMs(key));
+            if (isNaN(d.getTime())) return String(key);
             return d.toLocaleString('en-GB', {
                 year: 'numeric', month: '2-digit', day: '2-digit',
                 hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
             });
         }
 
-        function formatBackupSize(chars) {
-            const n = Number(chars) || 0;
+        function formatBackupSize(bytes) {
+            const n = Number(bytes) || 0;
             return n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB' : (n / 1024).toFixed(1) + ' KB';
         }
 
-        // Creates a full snapshot. Pass `preloadedData` to reuse data that was just read (avoids a second read).
+        function stripSecrets(data) {
+            if (data === null || typeof data !== 'object') return data;
+            const copy = JSON.parse(JSON.stringify(data));
+            delete copy.password;
+            return copy;
+        }
+
         async function createBackup(restId, reason, preloadedData) {
             if (!restId) throw new Error('معرّف المطعم مفقود.');
             const db = firebase.database();
@@ -808,27 +928,70 @@
                 if (!snap.exists()) throw new Error('بيانات المطعم غير موجودة.');
                 data = snap.val();
             }
+            data = stripSecrets(data);
 
-            const ts = String(Date.now());
+            const ts = db.ref('restaurant_backups/' + restId).push().key;
+            if (!ts) throw new Error('تعذر إنشاء معرّف فريد للنسخة الاحتياطية.');
+            const serializedData = JSON.stringify(data);
             const meta = {
                 createdAt: new Date().toISOString(),
                 reason: reason || 'manual',
                 restaurantName: (data && data.name) ? String(data.name) : '',
                 subscriptionActive: isRestaurantActive(data),
                 createdBy: (auth.currentUser && auth.currentUser.email) || '',
-                size: JSON.stringify(data).length
+                size: new Blob([serializedData]).size
             };
 
             const updates = {};
             updates['restaurant_backups/' + restId + '/' + ts] = data;
             updates['restaurant_backups_meta/' + restId + '/' + ts] = meta;
-            await db.ref().update(updates);               // atomic: snapshot + descriptor together
+            await db.ref().update(updates);
+
+            // Retention: runs only after the new backup is safely written. A pruning failure is
+            // non-fatal (the backup itself succeeded) and is retried on the next backup.
+            try {
+                await pruneBackups(restId, ts);
+            } catch (pruneErr) {
+                console.warn('Backup pruning failed (will retry on the next backup):', pruneErr);
+            }
             return ts;
         }
 
-        // Backup guard used before every change.
-        // allowSkip=true  -> if the backup fails the admin may choose to continue anyway.
-        // allowSkip=false -> if the backup fails the operation is cancelled (destructive actions).
+        // Keeps the newest BACKUP_RETENTION_LIMIT backups of a restaurant and deletes the rest.
+        // Only the small meta node is downloaded; snapshots are removed by key, never read.
+        async function pruneBackups(restId, protectedTs) {
+            if (!restId) return 0;
+            const db = firebase.database();
+
+            const metaSnap = await db.ref('restaurant_backups_meta/' + restId).once('value');
+            if (!metaSnap.exists()) return 0;
+
+            const keys = [];
+            metaSnap.forEach((child) => { keys.push(child.key); });
+
+            // Newest first (push IDs are not numeric: sort by decoded time, key as tie-breaker).
+            keys.sort((a, b) => {
+                const d = (backupTimeMs(b) || 0) - (backupTimeMs(a) || 0);
+                return d !== 0 ? d : (a < b ? 1 : a > b ? -1 : 0);
+            });
+
+            // The backup that was just created is never eligible for deletion.
+            const keep = new Set(keys.slice(0, BACKUP_RETENTION_LIMIT));
+            if (protectedTs) keep.add(protectedTs);
+
+            const excess = keys.filter((k) => !keep.has(k));
+            if (!excess.length) return 0;
+
+            // ONE atomic multi-path update: snapshot + descriptor of every old backup go together.
+            const updates = {};
+            excess.forEach((k) => {
+                updates['restaurant_backups/' + restId + '/' + k] = null;
+                updates['restaurant_backups_meta/' + restId + '/' + k] = null;
+            });
+            await db.ref().update(updates);
+            return excess.length;
+        }
+
         async function ensureBackup(restId, reason, options) {
             const allowSkip = !!(options && options.allowSkip);
             try {
@@ -845,7 +1008,6 @@
             }
         }
 
-        // ---- "Backup Data" button on each restaurant row ----
         async function backupRestaurantNow(restId, btn) {
             if (!dashboardStarted || !restId) return;
             const original = btn ? btn.innerHTML : '';
@@ -862,7 +1024,6 @@
             }
         }
 
-        // ---- "Restore Data" button: opens the backup list for a restaurant ----
         function openBackupModal(restId) {
             if (!dashboardStarted) return;
             const rest = restaurantsCache[restId];
@@ -870,7 +1031,7 @@
 
             backupModalRestId = restId;
             $('backupModalName').innerText = rest.name || restId;
-            $('backupModalLogo').src = rest.logo || DEFAULT_LOGO;
+            $('backupModalLogo').src = safeImageSrc(rest.logo);
             $('restoreKeepOrders').checked = true;
             $('restoreKeepStatus').checked = true;
             $('backupModalBody').classList.remove('is-busy');
@@ -879,7 +1040,7 @@
         }
 
         function closeBackupModal() {
-            if (restoreRunning) return;                  // never close in the middle of a restore
+            if (restoreRunning) return;
             closeModal('backupModal');
             backupModalRestId = '';
             $('backupList').innerHTML = '';
@@ -903,11 +1064,15 @@
                     .limitToLast(BACKUP_LIST_LIMIT)
                     .once('value');
 
-                if (forId !== backupModalRestId) return;   // the modal moved on to another restaurant
+                if (forId !== backupModalRestId) return;
 
                 const items = [];
                 snap.forEach((child) => { items.push({ ts: child.key, meta: child.val() || {} }); });
-                items.sort((a, b) => Number(b.ts) - Number(a.ts));
+                // Newest first. Push IDs are not numeric, so sort by the decoded time (key as tie-breaker).
+                items.sort((a, b) => {
+                    const d = (backupTimeMs(b.ts) || 0) - (backupTimeMs(a.ts) || 0);
+                    return d !== 0 ? d : (a.ts < b.ts ? 1 : a.ts > b.ts ? -1 : 0);
+                });
 
                 if (!items.length) {
                     box.innerHTML = `<div class="py-10 text-center text-sm text-gray-400">لا توجد نسخ احتياطية لهذا المطعم بعد.</div>`;
@@ -932,8 +1097,8 @@
                                 </div>
                             </div>
                             <div class="flex gap-2 shrink-0">
-                                <button onclick="restoreBackup('${safeTs}')" class="bg-purple-500 hover:bg-purple-600 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition active:scale-95">♻️ استعادة</button>
-                                <button onclick="deleteBackup('${safeTs}')" class="bg-gray-100 hover:bg-red-50 text-gray-600 hover:text-red-600 px-3 py-1.5 rounded-lg text-xs font-semibold transition active:scale-95">حذف</button>
+                                <button data-action="restore-backup" data-ts="${safeTs}" class="bg-purple-500 hover:bg-purple-600 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition active:scale-95">♻️ استعادة</button>
+                                <button data-action="delete-backup" data-ts="${safeTs}" class="bg-gray-100 hover:bg-red-50 text-gray-600 hover:text-red-600 px-3 py-1.5 rounded-lg text-xs font-semibold transition active:scale-95">حذف</button>
                             </div>
                         </div>`;
                 }).join('');
@@ -944,7 +1109,6 @@
             }
         }
 
-        // ---- Manual backup from inside the backup modal ----
         async function createManualBackup() {
             if (!dashboardStarted || !backupModalRestId || restoreRunning) return;
             const btn = $('createBackupBtn');
@@ -961,7 +1125,7 @@
             }
         }
 
-        // ---- Restore: reverts restaurants/{restId} to a saved snapshot ----
+        /* ---- Restore: multi-path update, NOT a whole-node set() (see original design notes) ---- */
         async function restoreBackup(ts) {
             if (!dashboardStarted || !backupModalRestId || restoreRunning) return;
             const restId = backupModalRestId;
@@ -979,36 +1143,44 @@
             try {
                 const db = firebase.database();
 
-                // 1) Load the chosen snapshot
                 const backupSnap = await db.ref('restaurant_backups/' + restId + '/' + ts).once('value');
                 if (!backupSnap.exists()) throw new Error('النسخة الاحتياطية غير موجودة أو فارغة.');
                 const restored = backupSnap.val();
-                if (restored === null || typeof restored !== 'object') throw new Error('محتوى النسخة الاحتياطية غير صالح.');
+                if (restored === null || typeof restored !== 'object' || Array.isArray(restored)) {
+                    throw new Error('محتوى النسخة الاحتياطية غير صالح.');
+                }
 
-                // 2) Safety backup of the CURRENT state (mandatory: restore is aborted if it fails)
                 const currentSnap = await db.ref('restaurants/' + restId).once('value');
                 const current = currentSnap.exists() ? currentSnap.val() : null;
                 if (current) {
                     await createBackup(restId, 'before-restore', current);
                 }
 
-                // 3) Keep live operational data if requested
+                const protectedKeys = new Set(['uid', 'email']);
+                if (keepOrders) protectedKeys.add('orders');
+                if (keepStatus) STATUS_FIELD_NAMES.forEach((k) => protectedKeys.add(k));
+
+                const updates = {};
+                Object.keys(restored).forEach((key) => {
+                    if (key === 'password') return;
+                    if (current && protectedKeys.has(key)) return;
+                    updates[key] = restored[key];
+                });
                 if (current) {
-                    if (keepOrders) {
-                        if (current.orders !== undefined) restored.orders = current.orders;
-                        else delete restored.orders;
-                    }
-                    if (keepStatus) {
-                        STATUS_FIELD_NAMES.forEach((k) => {
-                            if (current[k] !== undefined) restored[k] = current[k];
-                            else delete restored[k];
-                        });
-                    }
+                    Object.keys(current).forEach((key) => {
+                        if (protectedKeys.has(key)) return;
+                        if (!(key in restored) || key === 'password') {
+                            updates[key] = null;
+                        }
+                    });
                 }
 
-                // 4) Revert the node
-                await db.ref('restaurants/' + restId).set(restored);
+                if (!Object.keys(updates).length) {
+                    showToast('لا توجد تغييرات لتطبيقها: النسخة مطابقة للحالة الحالية.', 'success');
+                    return;
+                }
 
+                await db.ref('restaurants/' + restId).update(updates);
                 showToast('تمت استعادة بيانات المطعم بنجاح', 'success');
             } catch (err) {
                 console.error('Restore failed:', err);
@@ -1019,7 +1191,6 @@
             }
         }
 
-        // ---- Delete a single backup entry ----
         async function deleteBackup(ts) {
             if (!dashboardStarted || !backupModalRestId || restoreRunning) return;
             const restId = backupModalRestId;
@@ -1043,9 +1214,32 @@
 
         /* ===================== END BACKUP & RESTORE ===================== */
 
+        // ---- Delegated click handlers: IDs live in data-* attributes, never inside inline JS strings ----
+        function bindDelegatedEvents() {
+            $('restaurantsTableBody').addEventListener('click', (e) => {
+                const btn = e.target.closest('button[data-action]');
+                if (!btn || !dashboardStarted) return;
+                const id = btn.dataset.id;
+                switch (btn.dataset.action) {
+                    case 'qr':      generateQRs(id); break;
+                    case 'backup':  backupRestaurantNow(id, btn); break;
+                    case 'restore': openBackupModal(id); break;
+                    case 'manage':  openSettingsModal(id); break;
+                }
+            });
+            $('backupList').addEventListener('click', (e) => {
+                const btn = e.target.closest('button[data-action]');
+                if (!btn) return;
+                const ts = btn.dataset.ts;
+                if (btn.dataset.action === 'restore-backup') restoreBackup(ts);
+                else if (btn.dataset.action === 'delete-backup') deleteBackup(ts);
+            });
+        }
+        bindDelegatedEvents();
+
         function loadRestaurantsAndStats() {
-            if (!dashboardStarted) return;   // hard stop: never fetch before every check passed
-            stopDashboard();                 // never stack two listeners
+            if (!dashboardStarted) return;
+            stopDashboard();
             const tableBody = document.getElementById('restaurantsTableBody');
             restaurantsRef = firebase.database().ref('restaurants');
             restaurantsRef.on('value', (snapshot) => {
@@ -1072,11 +1266,7 @@
                     const rest = data[restId] || {};
                     const active = isRestaurantActive(rest);
 
-                    if (active) {
-                        activeCount++;
-                    } else {
-                        inactiveCount++;
-                    }
+                    if (active) { activeCount++; } else { inactiveCount++; }
 
                     const tables = parseInt(rest.tablesCount, 10) || 0;
                     totalTablesCount += tables;
@@ -1085,24 +1275,27 @@
                         ? `<span class="bg-green-100 text-green-700 text-xs font-bold px-2.5 py-1 rounded-full">نشط</span>`
                         : `<span class="bg-red-100 text-red-700 text-xs font-bold px-2.5 py-1 rounded-full">متوقف</span>`;
 
-                    const logoUrl = rest.logo || DEFAULT_LOGO;
+                    const logoUrl = safeImageSrc(rest.logo);
                     const safeId = escapeHtml(restId);
 
+                    // NOTE: the flex layout lives in an inner <div>; `display:flex` on a <td> breaks table layout.
                     rowsHtml += `
                         <tr class="hover:bg-gray-50 transition">
-                            <td class="py-4 px-4 flex items-center gap-3">
-                                <img src="${escapeHtml(logoUrl)}" class="w-9 h-9 rounded-full border object-cover">
-                                <span class="font-bold text-gray-800">${escapeHtml(rest.name)}</span>
+                            <td class="py-4 px-4">
+                                <div class="flex items-center gap-3">
+                                    <img src="${escapeHtml(logoUrl)}" alt="" class="w-9 h-9 rounded-full border object-cover">
+                                    <span class="font-bold text-gray-800">${escapeHtml(rest.name)}</span>
+                                </div>
                             </td>
-                            <td class="py-4 px-4 text-gray-600">${tables || 6} طاولات</td>
+                            <td class="py-4 px-4 text-gray-600">${tables} طاولات</td>
                             <td class="py-4 px-4">${statusBadge}</td>
                             <td class="py-4 px-4 text-gray-600">${escapeHtml(rest.email)}</td>
                             <td class="py-4 px-4">
                                 <div class="flex flex-wrap items-center justify-center gap-2">
-                                    <button onclick="generateQRs('${safeId}')" class="bg-green-500 hover:bg-green-600 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition">طباعة QR</button>
-                                    <button onclick="backupRestaurantNow('${safeId}', this)" class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition disabled:opacity-60 disabled:cursor-not-allowed">💾 نسخ احتياطي</button>
-                                    <button onclick="openBackupModal('${safeId}')" class="bg-purple-500 hover:bg-purple-600 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition">♻️ استعادة</button>
-                                    <button onclick="openSettingsModal('${safeId}')" class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1.5 rounded-lg text-xs font-semibold transition">تعديل وإدارة</button>
+                                    <button data-action="qr" data-id="${safeId}" class="bg-green-500 hover:bg-green-600 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition active:scale-95">طباعة QR</button>
+                                    <button data-action="backup" data-id="${safeId}" class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed">💾 نسخ احتياطي</button>
+                                    <button data-action="restore" data-id="${safeId}" class="bg-purple-500 hover:bg-purple-600 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition active:scale-95">♻️ استعادة</button>
+                                    <button data-action="manage" data-id="${safeId}" class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1.5 rounded-lg text-xs font-semibold transition active:scale-95">تعديل وإدارة</button>
                                 </div>
                             </td>
                         </tr>
@@ -1115,7 +1308,6 @@
                 document.getElementById('statInactiveRestaurants').innerText = inactiveCount;
                 document.getElementById('statTotalTables').innerText = totalTablesCount;
 
-                // Keep the open settings modal in sync with the database
                 if (currentRestId && restaurantsCache[currentRestId]) {
                     isSubscriptionActive = isRestaurantActive(restaurantsCache[currentRestId]);
                     updateSubButtonUI();
@@ -1126,7 +1318,6 @@
             });
         }
 
-        // ---- Submit button loading state ----
         function setSubmitLoading(loading) {
             const btn = document.getElementById('submitRestaurantBtn');
             const cancelBtn = document.getElementById('cancelAddBtn');
@@ -1142,34 +1333,60 @@
         function resetAddRestaurantForm() {
             document.getElementById('addRestaurantForm').reset();
             document.getElementById('newRestTables').value = '6';
+            setNewPasswordVisible(false);
             removeLogo();
         }
 
+        async function rollbackAuthUser(user) {
+            if (!user) return { ok: true };
+            let lastError = null;
+            for (let attempt = 1; attempt <= 2; attempt++) {
+                try {
+                    await user.delete();
+                    return { ok: true };
+                } catch (err) {
+                    lastError = err;
+                    console.error('Rollback attempt ' + attempt + ' of the Auth user failed:', err);
+                    if (attempt < 2) await new Promise((resolve) => setTimeout(resolve, 600));
+                }
+            }
+            return { ok: false, error: lastError };
+        }
+
+        /* ADD RESTAURANT — validate, unique push key, create Auth user on the SECONDARY app,
+           write DB with the PRIMARY (admin) session, roll back the Auth user on any failure,
+           send the verification e-mail only after the DB write succeeded, always sign out the secondary app. */
         async function handleAddRestaurant(e) {
             e.preventDefault();
             if (!dashboardStarted) return;
 
-            // Block double submissions (double click / Enter key / slow network)
             if (isSubmitting) return;
             isSubmitting = true;
             setSubmitLoading(true);
 
+            let createdUser = null;
+            const adminUid = dashboardUserUid;
+            // The admin session that started this request must still be the active, unlocked one.
+            const sessionStillValid = () =>
+                dashboardStarted && !!auth.currentUser && auth.currentUser.uid === adminUid;
+
             try {
-                // ---- Read & validate inputs ----
                 const name = document.getElementById('newRestName').value.trim();
                 const email = document.getElementById('newRestEmail').value.trim().toLowerCase();
-                const password = document.getElementById('newRestPassword').value.trim();
+                const password = document.getElementById('newRestPassword').value;   // NOT trimmed on purpose
                 const tables = parseInt(document.getElementById('newRestTables').value, 10);
                 const logo = uploadedLogoBase64 || DEFAULT_LOGO;
 
                 if (!name) { alert('Please enter the restaurant name'); return; }
+                if (name.length > 80) { alert('اسم المطعم طويل جداً (80 حرفاً كحد أقصى).'); return; }
                 if (!email) { alert('Please enter a valid email'); return; }
                 if (!password) { alert('Please enter a password'); return; }
-                if (!Number.isInteger(tables) || tables < 1) { alert('Please enter a valid number of tables (1 or more)'); return; }
+                if (password.length < 6) { alert('كلمة السر يجب أن تتكون من 6 أحرف على الأقل.'); return; }
+                if (!Number.isInteger(tables) || tables < 1 || tables > 500) { alert('عدد الطاولات يجب أن يكون بين 1 و 500.'); return; }
 
                 const db = firebase.database();
 
-                // ---- Check if the email already exists ----
+                // Requires ".indexOn": "email" on /restaurants in the database rules.
                 const existing = await db.ref('restaurants')
                     .orderByChild('email')
                     .equalTo(email)
@@ -1179,44 +1396,89 @@
                     alert('This email is already registered');
                     return;
                 }
+                if (!sessionStillValid()) throw new Error('انتهت جلسة المشرف. سجّل الدخول من جديد.');
 
-                // ---- Build a fully defined object (no undefined values) ----
-                const slug = name.toLowerCase().replace(/[^a-z0-9\u0600-\u06FF]+/g, '_').replace(/^_+|_+$/g, '') || 'restaurant';
-                const restId = slug + '_' + Math.floor(Math.random() * 100000);
+                const restRef = db.ref('restaurants').push();
+                const restId = restRef.key;
+                if (!restId) throw new Error('تعذر إنشاء معرّف فريد للمطعم.');
+
+                try {
+                    await secondaryAuth.setPersistence(firebase.auth.Auth.Persistence.NONE);
+                    if (secondaryAuth.currentUser) await secondaryAuth.signOut();
+                    const cred = await secondaryAuth.createUserWithEmailAndPassword(email, password);
+                    createdUser = cred.user;
+                } catch (authErr) {
+                    console.error('Auth user creation failed:', authErr);
+                    alert('تعذر إنشاء حساب الدخول: ' + authErrorMessage(authErr));
+                    return;
+                }
+
+                // If the admin logged out / switched while the account was being created, abort (outer catch rolls back).
+                if (!sessionStillValid()) throw new Error('انتهت جلسة المشرف أثناء الإنشاء. تم التراجع عن العملية.');
 
                 const restaurantData = {
                     name: name,
                     email: email,
-                    password: password,
+                    uid: createdUser.uid,
                     tablesCount: tables,
                     logo: logo,
-                    ...STATUS_ACTIVE_FIELDS,   // active, is_active, suspended, status — consistent from day one
-                    meta: {
-                        createdAt: new Date().toISOString()
-                    },
+                    ...STATUS_ACTIVE_FIELDS,
+                    meta: { createdAt: new Date().toISOString() },
                     menu: {
-                        item_sample: {
-                            name: "طبق تجريبي أول",
-                            price: 45,
-                            category: "مقبلات"
-                        }
+                        item_sample: { name: "طبق تجريبي أول", price: 45, category: "مقبلات" }
                     },
-                    orders: {
-                        initialized: true
-                    }
+                    orders: { initialized: true }
                 };
 
-                await db.ref('restaurants/' + restId).set(restaurantData);
+                try {
+                    await restRef.set(restaurantData);
+                } catch (dbErr) {
+                    console.error('Database write failed, rolling back the Auth user:', dbErr);
+                    const rb = await rollbackAuthUser(createdUser);
+                    createdUser = null;
+                    const dbMsg = (dbErr && dbErr.message) ? dbErr.message : dbErr;
+                    if (rb.ok) {
+                        alert('فشل حفظ بيانات المطعم في قاعدة البيانات، وتم حذف حساب الدخول الذي أُنشئ تلقائياً.\n\n' + dbMsg);
+                    } else {
+                        alert('فشل حفظ بيانات المطعم في قاعدة البيانات، كما فشل حذف حساب الدخول تلقائياً.\n' +
+                              'احذف هذا الحساب يدوياً من Firebase Console ← Authentication: ' + email + '\n\n' + dbMsg);
+                    }
+                    return;
+                }
 
-                // ---- Success: reset the form & close the modal ----
+                const userToVerify = createdUser;
+                createdUser = null;
+                let verificationSent = true;
+                try {
+                    await userToVerify.sendEmailVerification();
+                } catch (verifyErr) {
+                    verificationSent = false;
+                    console.error('Verification e-mail could not be sent:', verifyErr);
+                }
+
                 resetAddRestaurantForm();
                 closeModal('addRestaurantModal');
-                alert(`تم إنشاء مطعم "${name}" وهيكلته بنجاح!`);
+                alert(
+                    `تم إنشاء مطعم "${name}" وهيكلته بنجاح!\n` +
+                    `لم يتم حفظ كلمة السر في قاعدة البيانات، تأكد من تسليمها للعميل.\n` +
+                    (verificationSent
+                        ? `تم إرسال رسالة تأكيد البريد الإلكتروني إلى ${email}.`
+                        : `⚠️ تعذر إرسال رسالة تأكيد البريد الإلكتروني إلى ${email}. الحساب والمطعم تم إنشاؤهما بنجاح، ويمكنك طلب رابط إعادة تعيين كلمة السر لاحقاً من نافذة «تعديل وإدارة».`)
+                );
 
             } catch (error) {
-                alert("حدث خطأ أثناء الإنشاء: " + (error && error.message ? error.message : error));
+                console.error('Unexpected error while adding the restaurant:', error);
+                let rollbackNote = '';
+                if (createdUser) {
+                    const rb = await rollbackAuthUser(createdUser);
+                    createdUser = null;
+                    rollbackNote = rb.ok
+                        ? '\n\nتم حذف حساب الدخول الذي أُنشئ تلقائياً.'
+                        : '\n\nفشل حذف حساب الدخول تلقائياً. احذفه يدوياً من Firebase Console ← Authentication.';
+                }
+                alert("حدث خطأ أثناء الإنشاء: " + (error && error.message ? error.message : error) + rollbackNote);
             } finally {
-                // Always re-enable, whether it succeeded, failed, or was aborted
+                try { await secondaryAuth.signOut(); } catch (so) { console.warn('Secondary sign-out failed:', so); }
                 isSubmitting = false;
                 setSubmitLoading(false);
             }
@@ -1229,16 +1491,30 @@
             currentRestId = restId;
             document.getElementById('modalRestName').innerText = rest.name || '';
             document.getElementById('modalEmail').innerText = rest.email || '';
-            document.getElementById('modalPassword').innerText = rest.password || 'غير متاح';
-            document.getElementById('modalLogo').src = rest.logo || DEFAULT_LOGO;
+            document.getElementById('modalLogo').src = safeImageSrc(rest.logo);
 
             isSubscriptionActive = isRestaurantActive(rest);
             updateSubButtonUI();
 
-            toggleModal('settingsModal');
+            openModal('settingsModal');     // open (not toggle): never closes an already-open modal
         }
 
-        // Writes the 4 status fields in ONE atomic update (all succeed or none)
+        async function sendRestaurantPasswordReset() {
+            const rest = restaurantsCache[currentRestId];
+            if (!rest || !rest.email) { showToast('بريد المطعم غير متوفر.', 'error'); return; }
+            const btn = $('resetPasswordBtn');
+            btn.disabled = true;
+            try {
+                await auth.sendPasswordResetEmail(rest.email);
+                showToast('تم إرسال رابط إعادة تعيين كلمة السر إلى ' + rest.email, 'success');
+            } catch (err) {
+                console.error(err);
+                showToast(authErrorMessage(err), 'error');
+            } finally {
+                btn.disabled = false;
+            }
+        }
+
         async function setSubscriptionStatus(restId, activate) {
             if (!dashboardStarted || !restId) return;
             const fields = activate ? STATUS_ACTIVE_FIELDS : STATUS_SUSPENDED_FIELDS;
@@ -1246,13 +1522,12 @@
         }
 
         async function toggleSubscriptionStatus() {
-            if (!currentRestId) return;
+            if (!dashboardStarted || !currentRestId) return;
             const btn = document.getElementById('toggleSubBtn');
-            const targetActive = !isSubscriptionActive;      // the state we are moving to
+            const targetActive = !isSubscriptionActive;
 
             btn.disabled = true;
             try {
-                // Automatic backup BEFORE the status change (admin may continue without one if it fails)
                 const backedUp = await ensureBackup(
                     currentRestId,
                     targetActive ? 'before-reactivate' : 'before-suspend',
@@ -1261,7 +1536,7 @@
                 if (!backedUp) return;
 
                 await setSubscriptionStatus(currentRestId, targetActive);
-                isSubscriptionActive = targetActive;          // update local state only after the DB confirms
+                isSubscriptionActive = targetActive;
                 alert(targetActive
                     ? "تم تفعيل اشتراك المطعم بنجاح!"
                     : "تم إيقاف الاشتراك وقفل واجهات المطعم بنجاح!");
@@ -1276,7 +1551,7 @@
 
         function updateSubButtonUI() {
             const btn = document.getElementById('toggleSubBtn');
-            const base = "px-3 py-1.5 rounded-lg text-xs font-bold text-white transition disabled:opacity-60 disabled:cursor-not-allowed ";
+            const base = "px-3 py-1.5 rounded-lg text-xs font-bold text-white transition active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed ";
             if (isSubscriptionActive) {
                 btn.innerText = "إيقاف الاشتراك 🔴";
                 btn.className = base + "bg-red-500 hover:bg-red-600";
@@ -1286,9 +1561,10 @@
             }
         }
 
-        // ---- Delete restaurant (a backup is mandatory first; the backups themselves are kept) ----
+        // A backup is mandatory first; the backups themselves are kept.
+        // A client-side app cannot delete another user's Firebase Auth account (needs Admin SDK / Console).
         async function deleteRestaurant() {
-            if (!currentRestId) return;
+            if (!dashboardStarted || !currentRestId) return;
 
             if (!confirm('Are you sure you want to delete this restaurant? A backup copy will be saved first, but the restaurant will disappear from this list.')) {
                 return;
@@ -1299,7 +1575,7 @@
             deleteBtn.disabled = true;
 
             try {
-                const backedUp = await ensureBackup(restId, 'before-delete');   // strict: no backup, no delete
+                const backedUp = await ensureBackup(restId, 'before-delete');
                 if (!backedUp) return;
 
                 await firebase.database().ref('restaurants/' + restId).remove();
@@ -1310,8 +1586,7 @@
                     backupModalRestId = '';
                     closeModal('backupModal');
                 }
-                // The table and stats refresh automatically via the realtime listener
-                alert('Restaurant deleted successfully. Its backups were kept under restaurant_backups.');
+                alert('Restaurant deleted successfully. Its backups were kept under restaurant_backups.\nملاحظة: حساب الدخول في Firebase Auth لم يُحذف، يمكنك حذفه من Firebase Console.');
             } catch (error) {
                 alert('حدث خطأ أثناء الحذف: ' + (error && error.message ? error.message : error));
             } finally {
@@ -1319,16 +1594,40 @@
             }
         }
 
+        // Opens the restaurant dashboard in Management / Override Mode.
+        // The admin stays signed in with their OWN account (same origin = same Firebase Auth session);
+        // no restaurant password is needed, read or stored. Only the target id travels, via
+        // sessionStorage (tab-scoped, never in the URL, so it is not logged, shared or bookmarked).
         function loginAsRestaurant() {
-            window.location.href = `chef.html?restaurant_id=${encodeURIComponent(currentRestId)}`;
+            if (!dashboardStarted || !currentRestId) return;
+            const user = auth.currentUser;
+            if (!user || user.uid !== dashboardUserUid) {
+                showToast('انتهت جلسة المشرف. سجّل الدخول من جديد.', 'error');
+                return;
+            }
+            if (!restaurantsCache[currentRestId]) {
+                showToast('المطعم غير موجود.', 'error');
+                return;
+            }
+            try {
+                sessionStorage.setItem(OVERRIDE_STORAGE_KEY, JSON.stringify({
+                    restId: currentRestId,
+                    adminUid: user.uid,        // binds the hint to THIS admin account
+                    createdAt: Date.now()      // the dashboard rejects hints older than its TTL
+                }));
+            } catch (err) {
+                console.error('sessionStorage unavailable:', err);
+                showToast('تعذر فتح وضع الإدارة: التخزين المؤقت للمتصفح غير متاح.', 'error');
+                return;
+            }
+            window.location.href = RESTAURANT_DASHBOARD_URL;
         }
 
-        // توجيه المشرف لصفحة الطباعة المستقلة مع معرّف المطعم
         function generateQRs(restId) {
-            window.open(`print-qr.html?restaurant_id=${encodeURIComponent(restId)}`, '_blank');
+            if (!dashboardStarted || !restId) return;
+            window.open(`print-qr.html?restaurant_id=${encodeURIComponent(restId)}`, '_blank', 'noopener');
         }
 
-        // Sign out, wipe the dashboard and return to the embedded login form (no redirect)
         async function logout() {
             stopDashboard();
             lockDashboard();

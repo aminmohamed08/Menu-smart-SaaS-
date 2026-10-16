@@ -10,57 +10,31 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
 <style>
-  :root {
-    --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
-    --amber: #F59E0B;
-  }
+  :root { --ease-out: cubic-bezier(0.16, 1, 0.3, 1); --amber: #F59E0B; }
   body { font-family: 'Cairo', sans-serif; }
 
-  /* ---------- Motion: composite properties only (transform + opacity) ---------- */
-  @keyframes rise {
-    from { opacity: 0; transform: translateY(14px); }
-    to   { opacity: 1; transform: none; }
-  }
-  @keyframes pop {
-    from { opacity: 0; transform: translateY(16px) scale(0.97); }
-    to   { opacity: 1; transform: none; }
-  }
-  @keyframes popOut {
-    from { opacity: 1; transform: none; }
-    to   { opacity: 0; transform: translateY(8px) scale(0.98); }
-  }
+  @keyframes rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+  @keyframes pop { from { opacity: 0; transform: translateY(16px) scale(0.97); } to { opacity: 1; transform: none; } }
+  @keyframes popOut { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(8px) scale(0.98); } }
   @keyframes fadeIn  { from { opacity: 0; } to { opacity: 1; } }
   @keyframes fadeOut { from { opacity: 1; } to { opacity: 0; } }
 
-  /* One orchestrated page-load sequence: items reveal with a stagger via --i */
-  .reveal {
-    opacity: 0;
-    animation: rise 420ms var(--ease-out) forwards;
-    animation-delay: calc(var(--i, 0) * 70ms);
-  }
+  .reveal { opacity: 0; animation: rise 420ms var(--ease-out) forwards; animation-delay: calc(var(--i, 0) * 70ms); }
   .tab-in { animation: rise 350ms var(--ease-out) both; }
 
-  /* Tactile feedback for every interactive element */
-  .press {
-    transition: transform 180ms var(--ease-out), opacity 180ms ease-out;
-    will-change: transform;
-  }
+  .press { transition: transform 180ms var(--ease-out), opacity 180ms ease-out; will-change: transform; }
   .press:hover:not(:disabled) { transform: translateY(-1px); }
   .press:active:not(:disabled) { transform: scale(0.96); }
   .press:disabled { opacity: 0.6; cursor: not-allowed; }
   .card-hover { transition: transform 220ms var(--ease-out); }
   .card-hover:hover { transform: translateY(-2px); }
-  button:focus-visible, a:focus-visible, [role="button"]:focus-visible {
-    outline: 2px solid var(--amber); outline-offset: 2px;
-  }
+  button:focus-visible, a:focus-visible, [role="button"]:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
 
-  /* Modal enter / exit */
   #item-modal { animation: fadeIn 200ms ease-out; }
   #item-modal > div { animation: pop 300ms var(--ease-out); }
   #item-modal.is-closing { animation: fadeOut 160ms ease-out forwards; }
   #item-modal.is-closing > div { animation: popOut 160ms ease-out forwards; }
 
-  /* Image drop zone */
   .drop-zone { border: 2px dashed #D1D5DB; transition: opacity 200ms ease-out; }
   .drop-zone.dragover { border-color: var(--amber); background-color: #FFFBEB; }
 
@@ -69,7 +43,6 @@
     .reveal { opacity: 1; }
   }
 
-  /* ---------- Thermal-ticket printing ---------- */
   #print-area { display: none; }
   @media print {
     body > *:not(#print-area) { display: none !important; }
@@ -81,7 +54,38 @@
 </head>
 <body class="bg-gray-100 min-h-screen">
 
-<!-- Boot screen: shown while a stored session is being verified -->
+<!-- Super Admin Override Mode banner -->
+<div id="override-banner" class="hidden sticky top-0 z-40 bg-violet-700 text-white shadow-md" role="status">
+  <div class="max-w-7xl mx-auto px-4 py-2 flex flex-wrap gap-3 items-center justify-between text-sm font-bold">
+    <span><i class="fa-solid fa-user-shield ml-1" aria-hidden="true"></i> وضع الإدارة (Super Admin) — <span id="override-name"></span>
+      <span class="font-normal text-violet-200 text-xs mr-2">التغييرات تُطبَّق مباشرة على بيانات هذا المطعم.</span></span>
+    <button type="button" data-action="exit-override" class="press bg-white text-violet-700 hover:bg-violet-50 rounded-lg px-3 py-1 text-xs font-black">العودة إلى لوحة المشرف</button>
+  </div>
+</div>
+
+<!-- Suspended subscription: read-only banner + overlay -->
+<div id="suspended-banner" class="hidden sticky top-0 z-40 bg-red-700 text-white shadow-md" role="status">
+  <div class="max-w-7xl mx-auto px-4 py-2 flex flex-wrap gap-3 items-center justify-between text-sm font-bold">
+    <span><i class="fa-solid fa-lock ml-1" aria-hidden="true"></i> الاشتراك غير نشط — لوحة التحكم في وضع القراءة فقط.</span>
+    <button type="button" data-action="show-suspended" class="press bg-white text-red-700 rounded-lg px-3 py-1 text-xs font-black">تفاصيل وتجديد الاشتراك</button>
+  </div>
+</div>
+<div id="suspended-overlay" class="hidden fixed inset-0 z-[60] bg-slate-900/90 backdrop-blur-sm items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="susp-title">
+  <div class="bg-white rounded-2xl max-w-md w-full p-7 text-center space-y-4 shadow-2xl">
+    <div class="w-16 h-16 mx-auto rounded-full bg-red-50 text-red-500 flex items-center justify-center text-2xl"><i class="fa-solid fa-circle-pause" aria-hidden="true"></i></div>
+    <h2 id="susp-title" class="text-xl font-black text-gray-800">الاشتراك غير نشط أو منتهي</h2>
+    <p class="text-sm text-gray-600 leading-relaxed">تم إيقاف خدمة الطلبات لهذا المطعم. القائمة العامة مغلقة ولا يمكن للزبائن إرسال طلبات جديدة. <b>بياناتك ومنيو مطعمك محفوظة بالكامل</b> ويمكنك الاطلاع عليها في وضع القراءة فقط.</p>
+    <p class="text-sm font-bold text-gray-700">لتجديد الاشتراك أو الاستفسار، تواصل مع الإدارة:</p>
+    <div class="flex flex-col gap-2">
+      <a id="susp-mail" class="hidden press bg-amber-500 hover:bg-amber-600 text-slate-900 font-bold py-2.5 rounded-xl text-sm"><i class="fa-regular fa-envelope ml-1" aria-hidden="true"></i> مراسلة الإدارة بالبريد</a>
+      <a id="susp-wa" target="_blank" rel="noopener" class="hidden press bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-xl text-sm"><i class="fa-brands fa-whatsapp ml-1" aria-hidden="true"></i> واتساب</a>
+      <button id="susp-continue" type="button" data-action="hide-suspended" class="press bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2.5 rounded-xl text-sm">عرض لوحة التحكم (قراءة فقط)</button>
+      <button type="button" data-action="logout" class="press text-xs font-bold text-red-600 py-1">تسجيل الخروج</button>
+    </div>
+  </div>
+</div>
+
+<!-- Boot screen -->
 <div id="boot-screen" class="hidden min-h-screen flex items-center justify-center bg-slate-900" role="status" aria-live="polite">
   <div class="text-center text-slate-300 space-y-3">
     <i class="fa-solid fa-spinner fa-spin text-3xl text-amber-500" aria-hidden="true"></i>
@@ -99,7 +103,6 @@
       <p id="login-rid-line" class="hidden text-[11px] text-gray-400">المطعم: <span id="login-rid" dir="ltr" class="font-bold text-gray-600"></span></p>
     </div>
     <form id="login-form" class="space-y-4" novalidate>
-      <!-- Only shown when the page was opened without ?restaurant_id=... -->
       <div id="login-rid-field" class="hidden">
         <label for="login-rid-input" class="block text-xs font-bold text-gray-600 mb-1">معرّف المطعم (Restaurant ID)</label>
         <div class="relative">
@@ -127,6 +130,7 @@
         </div>
       </div>
       <div id="login-error" role="alert" class="hidden bg-red-50 border border-red-200 text-red-700 text-xs font-bold rounded-xl p-3"></div>
+      <a id="login-admin-link" href="admin.html" class="hidden block text-center text-xs font-bold text-violet-700 hover:underline">← العودة إلى لوحة المشرف العام</a>
       <button id="login-btn" type="submit" class="press w-full bg-amber-500 hover:bg-amber-600 text-slate-900 font-bold py-3 rounded-xl text-sm shadow">تسجيل الدخول</button>
     </form>
   </div>
@@ -145,6 +149,7 @@
     <nav class="flex flex-wrap gap-2" aria-label="التنقل">
       <button data-action="tab" data-id="orders" id="btn-orders" class="press px-4 py-2 font-bold rounded-lg text-sm"><i class="fa-solid fa-bell ml-1" aria-hidden="true"></i> الطلبات الحية</button>
       <button data-action="tab" data-id="menu" id="btn-menu" class="press px-4 py-2 font-bold rounded-lg text-sm"><i class="fa-solid fa-book-open ml-1" aria-hidden="true"></i> إدارة المنيو</button>
+      <button data-action="tab" data-id="cats" id="btn-cats" class="press px-4 py-2 font-bold rounded-lg text-sm"><i class="fa-solid fa-layer-group ml-1" aria-hidden="true"></i> الأقسام</button>
       <button data-action="logout" id="btn-logout" class="press px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg text-sm"><i class="fa-solid fa-right-from-bracket ml-1" aria-hidden="true"></i> تسجيل الخروج</button>
     </nav>
   </div>
@@ -171,7 +176,7 @@
     <div class="flex flex-wrap gap-3 justify-between items-center">
       <h2 class="text-2xl font-black text-gray-800">إدارة المنيو <span id="menu-count" class="text-sm font-bold bg-slate-200 text-slate-700 px-2.5 py-1 rounded-full align-middle">0</span></h2>
       <div class="flex flex-wrap gap-2">
-        <button data-action="restore-demo" class="press bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold px-4 py-2 rounded-lg text-sm"><i class="fa-solid fa-rotate-left ml-1" aria-hidden="true"></i> استعادة الأطباق التجريبية</button>
+        <button data-action="restore-demo" class="press bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold px-4 py-2 rounded-lg text-sm"><i class="fa-solid fa-rotate-left ml-1" aria-hidden="true"></i> إضافة الأطباق التجريبية</button>
         <button data-action="add-item" class="press bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2 rounded-lg text-sm shadow"><i class="fa-solid fa-plus ml-1" aria-hidden="true"></i> إضافة طبق جديد</button>
       </div>
     </div>
@@ -191,6 +196,37 @@
       </div>
     </div>
   </section>
+
+  <!-- Categories manager -->
+  <section id="tab-cats" class="hidden space-y-6">
+    <div class="flex flex-wrap gap-3 justify-between items-center">
+      <h2 class="text-2xl font-black text-gray-800">أقسام المنيو <span id="cats-count" class="text-sm font-bold bg-slate-200 text-slate-700 px-2.5 py-1 rounded-full align-middle">0</span></h2>
+      <button data-action="cat-suggest" class="press bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold px-4 py-2 rounded-lg text-sm"><i class="fa-solid fa-wand-magic-sparkles ml-1" aria-hidden="true"></i> إضافة أقسام مقترحة</button>
+    </div>
+    <p class="text-xs text-gray-500">تظهر هذه الأقسام تلقائياً في شريط التنقل العلوي للمنيو العام (بنفس الترتيب)، ويستعملها الزبائن لتصفية الأطباق.</p>
+
+    <form id="cat-form" class="bg-white rounded-xl shadow border border-gray-200 p-4 grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
+      <input type="hidden" id="cat-id">
+      <div><label for="cat-fr" class="block text-xs font-bold text-gray-600 mb-1">الاسم (Français)</label>
+        <input type="text" id="cat-fr" required maxlength="40" placeholder="Entrées" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"></div>
+      <div><label for="cat-ar" class="block text-xs font-bold text-gray-600 mb-1">الاسم (العربية)</label>
+        <input type="text" id="cat-ar" maxlength="40" placeholder="المقبلات" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"></div>
+      <div><label for="cat-icon" class="block text-xs font-bold text-gray-600 mb-1">الأيقونة</label>
+        <select id="cat-icon" class="w-full px-3 py-2 border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-amber-500"></select></div>
+      <div class="flex gap-2">
+        <button type="submit" id="cat-save-btn" class="press flex-1 bg-amber-500 hover:bg-amber-600 text-slate-900 font-bold px-4 py-2 rounded-lg text-sm shadow">إضافة القسم</button>
+        <button type="button" id="cat-cancel-btn" data-action="cat-cancel" class="press hidden bg-gray-200 text-gray-700 font-bold px-3 py-2 rounded-lg text-sm">إلغاء</button>
+      </div>
+    </form>
+
+    <div id="cats-orphans" class="hidden bg-amber-50 border border-amber-200 text-amber-900 rounded-xl p-4 text-xs space-y-2"></div>
+
+    <div class="bg-white rounded-xl shadow border border-gray-200 overflow-hidden">
+      <ul id="cats-list" class="divide-y divide-gray-100">
+        <li class="p-8 text-center text-gray-400 text-sm"><i class="fa-solid fa-spinner fa-spin ml-2" aria-hidden="true"></i> جاري التحميل...</li>
+      </ul>
+    </div>
+  </section>
 </main>
 
 <!-- Add / edit dish modal -->
@@ -205,9 +241,9 @@
         <div><label for="item-name-ar" class="block text-xs font-bold text-gray-600 mb-1">الاسم (العربية)</label>
           <input type="text" id="item-name-ar" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"></div>
       </div>
-      <div><label for="item-category" class="block text-xs font-bold text-gray-600 mb-1">القسم (Category id)</label>
-        <input type="text" id="item-category" list="cats" placeholder="ramen, pizza, dessert, drinks" required dir="ltr" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500">
-        <datalist id="cats"><option value="ramen"><option value="pizza"><option value="dessert"><option value="drinks"></datalist></div>
+      <div><label for="item-category" class="block text-xs font-bold text-gray-600 mb-1">القسم</label>
+        <select id="item-category" required class="w-full px-3 py-2 border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-amber-500"></select>
+        <p class="text-[11px] text-gray-400 mt-1">لإضافة قسم جديد افتح تبويب «الأقسام».</p></div>
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div><label for="item-price" class="block text-xs font-bold text-gray-600 mb-1">الثمن الحالي</label>
           <input type="number" step="0.01" min="0" id="item-price" required class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"></div>
@@ -215,17 +251,17 @@
           <input type="number" step="0.01" min="0" id="item-old-price" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"></div>
       </div>
 
-      <!-- Dish image: local file (stored as Base64) or a URL -->
       <div>
-        <label for="item-image" class="block text-xs font-bold text-gray-600 mb-1">صورة الطبق (اختر ملفاً أو أدخل رابطاً)</label>
-        <div class="flex gap-2 items-center mb-2">
+        <label for="item-image" class="block text-xs font-bold text-gray-600 mb-1">صورة الطبق (اختر ملفاً أو أدخل رابط https)</label>
+        <div class="flex gap-2 items-center mb-1">
           <img id="image-preview" class="hidden w-12 h-12 rounded-lg object-cover border bg-gray-100 shrink-0" alt="معاينة الصورة">
           <input type="text" id="item-image" required dir="ltr" autocomplete="off" placeholder="https://..." class="flex-1 min-w-0 px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 text-xs">
         </div>
+        <p id="image-size" class="text-[11px] text-gray-400 mb-2" dir="ltr"></p>
         <div id="dishDropZone" data-action="pick-file" role="button" tabindex="0"
           class="drop-zone rounded-xl p-3 text-center cursor-pointer bg-gray-50 hover:bg-gray-100 flex items-center justify-center gap-2">
           <i class="fa-solid fa-cloud-arrow-up text-gray-400" aria-hidden="true"></i>
-          <span class="text-xs text-gray-500">اضغط أو اسحب صورة الطبق هنا</span>
+          <span class="text-xs text-gray-500">اضغط أو اسحب صورة الطبق هنا (تُضغط تلقائياً قبل الحفظ)</span>
         </div>
         <input type="file" id="dishFileInput" accept="image/*" class="hidden">
       </div>
@@ -248,23 +284,13 @@
 <script type="module">
 /* =====================================================================
    chef.html — kitchen / waiter dashboard
-
-   Authentication (Firebase Auth):
-     1. signInWithEmailAndPassword(email, password)
-     2. DIRECT reads under restaurants/{restaurant_id}/... (no queries,
-        no reads of the restaurants root). restaurant_id comes from
-        ?restaurant_id=... (or the "Restaurant ID" field when the URL has none).
-     3. Access is granted only if the signed-in e-mail equals the
-        restaurant's `email` field (an admin account with the custom claim
-        { admin: true } may also open any restaurant) and the subscription
-        is active.
-
-   Only non-secret hints are kept in localStorage (restaurant id, e-mail).
-   The password is never stored. The Firebase Auth session itself is
-   persisted by the Firebase SDK.
-
-   Data paths (shared with index.html / admin.html):
-     restaurants/{restaurant_id}/email | status fields | orders | menu | meta
+   Access: restaurant owner (e-mail must match restaurants/{rid}/email) or Super Admin
+   Override Mode (claim admin:true + hint from admin.html).
+   Subscription: restaurants/{rid}/active (boolean) is the ONLY status field.
+     active !== true  => dashboard stays open but READ-ONLY, with a renewal overlay.
+   Categories: restaurants/{rid}/config/categories/{id} = { id, label:{fr,ar}, icon, order }
+     -> read by index.html (config) and shown as the chips ribbon.
+   Images: resized + compressed in the browser to a small budget before being stored.
    ===================================================================== */
 
 const FIREBASE_VERSION = '10.8.0';
@@ -278,9 +304,21 @@ const firebaseConfig = {
   appId: "1:329584219503:web:f085858228b35a5145049a"
 };
 
-const KEY_RID = 'chef_restaurant_id';      // remembered restaurant id (not a secret)
-const KEY_EMAIL = 'chef_email';            // present only while a session is open (boot hint)
-const INACTIVE_MSG = 'عذراً، هذا الحساب متوقف حالياً من طرف الإدارة.';
+const KEY_RID = 'chef_restaurant_id';
+const KEY_EMAIL = 'chef_email';
+
+/* Contact shown on the suspension screen (set your real values; an empty string hides the button) */
+const SUPPORT_EMAIL = 'support@fikra-automation.com';
+const SUPPORT_WHATSAPP = '';   // digits only, e.g. '2126XXXXXXXX'
+
+const OVERRIDE_STORAGE_KEY = 'adminOverride';
+const OVERRIDE_TTL_MS = 4 * 60 * 60 * 1000;
+const ADMIN_PANEL_URL = 'admin.html';
+const REST_ID_RE = /^[-\w]{1,64}$/;
+const ADMIN_NO_TARGET_MSG = 'أنت مسجّل الدخول كمشرف عام. افتح المطعم من لوحة المشرف (زر «الدخول المباشر»)، أو سجّل الدخول بحساب المطعم.';
+
+/* Image budget (characters of the data URL). Database rules cap the same field at IMG_HARD_LIMIT. */
+const IMG_MAX_SIDE = 480, IMG_MIN_SIDE = 240, IMG_TARGET_CHARS = 80000, IMG_HARD_LIMIT = 120000, IMG_MAX_FILE_BYTES = 15 * 1024 * 1024;
 
 /* ---------- Helpers ---------- */
 const $ = id => document.getElementById(id);
@@ -298,30 +336,59 @@ const STATUS = {
   completed: { label: 'مكتمل', cls: 'bg-emerald-100 text-emerald-800 border-emerald-300' }
 };
 
-/* ---------- Subscription status (same rule as admin.html and index.html) ---------- */
-const STATUS_KEYS = ['is_active', 'active', 'status', 'suspended'];
-const BLOCKED_STATUSES = ['inactive', 'suspended', 'expired', 'disabled', 'blocked', 'cancelled', 'canceled'];
-const isOffFlag = v => v === false || v === 0 || ['false', '0', 'no', 'off'].includes(String(v).trim().toLowerCase());
-function isRestaurantActive(s) {
-  if (!s) return false;
-  if (isOffFlag(s.is_active) || isOffFlag(s.active)) return false;
-  if (s.suspended === true || String(s.suspended).trim().toLowerCase() === 'true') return false;
-  if (s.status != null && BLOCKED_STATUSES.includes(String(s.status).trim().toLowerCase())) return false;
-  return true;
+/* ---------- Subscription (single field: active === true) ---------- */
+const isRestaurantActive = v => v === true;
+let suspended = false;
+function showSuspendedOverlay() {
+  const mail = $('susp-mail'), wa = $('susp-wa');
+  if (SUPPORT_EMAIL) { mail.href = 'mailto:' + SUPPORT_EMAIL + '?subject=' + encodeURIComponent('Renouvellement abonnement - ' + RID); mail.classList.remove('hidden'); }
+  if (SUPPORT_WHATSAPP) { wa.href = 'https://wa.me/' + SUPPORT_WHATSAPP; wa.classList.remove('hidden'); }
+  const o = $('suspended-overlay'); o.classList.remove('hidden'); o.classList.add('flex');
+  $('susp-continue').focus();
 }
+function hideSuspendedOverlay() {
+  const o = $('suspended-overlay'); o.classList.add('hidden'); o.classList.remove('flex');
+}
+function setSuspended(on) {
+  const was = suspended;
+  suspended = !!on;
+  $('suspended-banner').classList.toggle('hidden', !on);
+  if (on && !was) showSuspendedOverlay();
+  else if (!on) hideSuspendedOverlay();
+}
+const WRITE_ACTIONS = new Set(['set-status', 'delete-order', 'add-item', 'edit-item', 'toggle-soldout', 'delete-item', 'restore-demo',
+  'cat-suggest', 'cat-register', 'cat-up', 'cat-down', 'cat-delete']);
 
-/* localStorage can throw (private mode, blocked storage): never let it break the page */
 const store = {
   get: k => { try { return localStorage.getItem(k); } catch (e) { return null; } },
   set: (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} },
   clearSession: () => { try { localStorage.removeItem(KEY_EMAIL); } catch (e) {} }
 };
 
+/* ---------- Override hint ---------- */
+function clearOverrideHint() { try { sessionStorage.removeItem(OVERRIDE_STORAGE_KEY); } catch (e) {} }
+function hasOverrideHint() { try { return sessionStorage.getItem(OVERRIDE_STORAGE_KEY) !== null; } catch (e) { return false; } }
+function readOverrideHint(user) {
+  let raw = null;
+  try { raw = sessionStorage.getItem(OVERRIDE_STORAGE_KEY); } catch (e) {}
+  if (!raw) return null;
+  try {
+    const h = JSON.parse(raw);
+    const age = h ? Date.now() - h.createdAt : NaN;
+    if (h && typeof h.restId === 'string' && REST_ID_RE.test(h.restId) &&
+        h.adminUid === user.uid && Number.isFinite(age) && age >= 0 && age < OVERRIDE_TTL_MS) return h;
+  } catch (e) {}
+  clearOverrideHint();
+  return null;
+}
+
 /* ---------- Tenant ---------- */
-const requestedRid = cleanId(new URLSearchParams(location.search).get('restaurant_id'));  // from ?restaurant_id=
+const requestedRid = cleanId(new URLSearchParams(location.search).get('restaurant_id'));
 let RID = requestedRid;
-let pendingRid = '';        // restaurant id typed on the login form, used while the sign-in is being verified
-let loginMessage = '';      // message shown on the login screen (suspended, mismatch, ...)
+let pendingRid = '';
+let loginMessage = '';
+let loginAdminLink = false;
+let overrideMode = false;
 
 /* ---------- Screens & tabs ---------- */
 function showScreen(state) {
@@ -333,37 +400,45 @@ function showScreen(state) {
 
 const TAB_ON  = 'press px-4 py-2 bg-amber-500 text-slate-900 font-bold rounded-lg text-sm';
 const TAB_OFF = 'press px-4 py-2 bg-slate-800 text-gray-300 hover:bg-slate-700 font-bold rounded-lg text-sm';
+const TAB_BTN = { orders: 'btn-orders', menu: 'btn-menu', cats: 'btn-cats' };
+function paintTabs(tab) {
+  Object.keys(TAB_BTN).forEach(t => {
+    $('tab-' + t).classList.toggle('hidden', t !== tab);
+    $(TAB_BTN[t]).className = t === tab ? TAB_ON : TAB_OFF;
+  });
+}
 function switchTab(tab) {
-  const showOrders = tab === 'orders';
-  const target = $(showOrders ? 'tab-orders' : 'tab-menu');
-  $('tab-orders').classList.toggle('hidden', !showOrders);
-  $('tab-menu').classList.toggle('hidden', showOrders);
+  if (!TAB_BTN[tab]) tab = 'orders';
+  paintTabs(tab);
+  const target = $('tab-' + tab);
   target.classList.remove('tab-in'); void target.offsetWidth; target.classList.add('tab-in');
-  $('btn-orders').className = showOrders ? TAB_ON : TAB_OFF;
-  $('btn-menu').className = showOrders ? TAB_OFF : TAB_ON;
   try { history.replaceState(null, '', location.pathname + location.search + '#' + tab); } catch (e) {}
 }
-$('btn-orders').className = TAB_ON;
-$('btn-menu').className = TAB_OFF;
+paintTabs('orders');
 
-function setBusy(btn, busy, idleHtml, busyHtml) {
-  btn.disabled = busy;
-  btn.innerHTML = busy ? busyHtml : idleHtml;
-}
-function showFbError(msg) {
-  $('fb-error-text').textContent = msg;
-  $('fb-error').classList.remove('hidden');
-}
+function setBusy(btn, busy, idleHtml, busyHtml) { btn.disabled = busy; btn.innerHTML = busy ? busyHtml : idleHtml; }
+function showFbError(msg) { $('fb-error-text').textContent = msg; $('fb-error').classList.remove('hidden'); }
 function showLoginError(msg) {
   const box = $('login-error');
-  if (msg) { box.textContent = msg; box.classList.remove('hidden'); }
-  else box.classList.add('hidden');
+  if (msg) { box.textContent = msg; box.classList.remove('hidden'); } else box.classList.add('hidden');
 }
 
-/* ---------- Firebase (loaded lazily) ---------- */
+const LOGOUT_BTN_CLS = 'press px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg text-sm';
+const EXIT_BTN_CLS   = 'press px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white font-bold rounded-lg text-sm';
+function setOverrideUI(on, name) {
+  $('override-banner').classList.toggle('hidden', !on);
+  if (on) $('override-name').textContent = name || RID;
+  const b = $('btn-logout');
+  b.className = on ? EXIT_BTN_CLS : LOGOUT_BTN_CLS;
+  b.innerHTML = on
+    ? '<i class="fa-solid fa-arrow-right-from-bracket ml-1" aria-hidden="true"></i> العودة إلى لوحة المشرف'
+    : '<i class="fa-solid fa-right-from-bracket ml-1" aria-hidden="true"></i> تسجيل الخروج';
+}
+
+/* ---------- Firebase (lazy) ---------- */
 let db, auth, firebaseReady = false, firebasePromise = null;
 let ref, set, push, get, onValue, update, remove, runTransaction;
-let onAuthStateChanged, signInWithEmailAndPassword, signOut;
+let onAuthStateChanged, onIdTokenChanged, signInWithEmailAndPassword, signOut;
 const tenantRef = path => ref(db, `restaurants/${RID}/${path}`);
 
 async function loadFirebase() {
@@ -374,12 +449,20 @@ async function loadFirebase() {
     import(`${base}/firebase-auth.js`)
   ]);
   ({ ref, set, push, get, onValue, update, remove, runTransaction } = dbM);
-  ({ onAuthStateChanged, signInWithEmailAndPassword, signOut } = authM);
+  ({ onAuthStateChanged, onIdTokenChanged, signInWithEmailAndPassword, signOut } = authM);
   const app = appM.initializeApp(firebaseConfig);
   db = dbM.getDatabase(app);
   auth = authM.getAuth(app);
   firebaseReady = true;
-  onAuthStateChanged(auth, handleAuthState);   // delivers the restored session (or null) once, then every change
+  onAuthStateChanged(auth, handleAuthState);
+
+  onIdTokenChanged(auth, async user => {
+    if (!overrideMode || !user) return;
+    try {
+      const t = await user.getIdTokenResult();
+      if (overrideMode && t.claims.admin !== true) exitOverrideMode();
+    } catch (e) { console.warn('Token re-validation failed:', e); }
+  });
 }
 function ensureFirebase() {
   if (!firebasePromise) firebasePromise = loadFirebase().catch(err => { firebasePromise = null; throw err; });
@@ -388,7 +471,7 @@ function ensureFirebase() {
 
 /* ---------- Live orders ---------- */
 let orders = {}, knownIds = new Set(), firstLoad = true;
-const animatedOrders = new Set();   // cards already revealed, so live updates don't replay the entrance
+const animatedOrders = new Set();
 
 function beep() {
   try {
@@ -410,7 +493,6 @@ function startOrders() {
 }
 
 function renderOrders() {
-  /* Only real order objects (admin.html seeds a placeholder `initialized: true`) */
   const entries = Object.entries(orders)
     .filter(([, o]) => o && typeof o === 'object')
     .sort((a, b) => (b[1].timestamp || 0) - (a[1].timestamp || 0));
@@ -478,6 +560,158 @@ function printOrder(id) {
   window.print();
 }
 
+/* ---------- Categories ---------- */
+let catsCache = {};
+const CAT_ICONS = [
+  ['fa-utensils', 'عام'], ['fa-bowl-food', 'أطباق'], ['fa-burger', 'برغر'], ['fa-pizza-slice', 'بيتزا'],
+  ['fa-fish', 'سمك'], ['fa-leaf', 'سلطات'], ['fa-bread-slice', 'مخبوزات'], ['fa-fire', 'مشويات'],
+  ['fa-mug-hot', 'مشروبات ساخنة'], ['fa-martini-glass-citrus', 'عصائر'], ['fa-ice-cream', 'مثلجات'], ['fa-cake-candles', 'حلويات']
+];
+const SUGGESTED_CATS = [
+  { id: 'starters', fr: 'Entrées', ar: 'المقبلات', icon: 'fa-leaf' },
+  { id: 'mains', fr: 'Plats principaux', ar: 'الأطباق الرئيسية', icon: 'fa-bowl-food' },
+  { id: 'drinks', fr: 'Boissons', ar: 'المشروبات', icon: 'fa-mug-hot' },
+  { id: 'desserts', fr: 'Desserts', ar: 'الحلويات', icon: 'fa-cake-candles' }
+];
+const DEMO_CATS = [
+  { id: 'ramen', fr: 'Ramen', ar: 'رامن', icon: 'fa-bowl-food' },
+  { id: 'pizza', fr: 'Pizza', ar: 'بيتزا', icon: 'fa-pizza-slice' }
+];
+const CAT_ID_RE = /^[a-z0-9_-]{1,40}$/;
+const safeIcon = i => (typeof i === 'string' && /^fa-[a-z0-9-]+$/.test(i)) ? i : 'fa-tag';
+const slugify = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+  .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 32);
+
+const catsSorted = () => Object.entries(catsCache)
+  .filter(([, c]) => c && typeof c === 'object')
+  .map(([id, c]) => ({ id, label: L(c.label), icon: safeIcon(c.icon), order: Number(c.order) || 0 }))
+  .sort((a, b) => a.order - b.order || a.id.localeCompare(b.id));
+const maxCatOrder = () => catsSorted().reduce((m, c) => Math.max(m, c.order), 0);
+const catName = c => c.label.ar || c.label.fr || c.id;
+
+$('cat-icon').innerHTML = CAT_ICONS.map(([v, l]) => `<option value="${v}">${esc(l)}</option>`).join('');
+
+function startCategories() {
+  return onValue(tenantRef('config/categories'), snap => {
+    catsCache = snap.val() || {};
+    renderCats();
+    renderCategorySelect($('item-category').value);
+  }, err => {
+    $('cats-list').innerHTML = `<li class="p-8 text-center text-red-600 font-bold text-sm">تعذر تحميل الأقسام: ${esc(err.message)}</li>`;
+  });
+}
+
+function addCategoryIfMissing(c, order) {
+  /* Transaction: never overwrites an existing category */
+  return runTransaction(tenantRef('config/categories/' + c.id), cur =>
+    cur ? undefined : { id: c.id, label: { fr: c.fr, ar: c.ar || c.fr }, icon: c.icon || 'fa-utensils', order });
+}
+
+function renderCats() {
+  const cats = catsSorted();
+  $('cats-count').textContent = cats.length;
+  const counts = {};
+  Object.values(menuCache).forEach(it => { if (it && it.category) counts[it.category] = (counts[it.category] || 0) + 1; });
+
+  $('cats-list').innerHTML = cats.length ? cats.map((c, i) => `
+    <li class="flex items-center gap-3 p-4">
+      <i class="fa-solid ${c.icon} w-8 text-center text-amber-500 text-lg" aria-hidden="true"></i>
+      <div class="flex-1 min-w-0">
+        <div class="font-bold text-gray-800 truncate">${esc(catName(c))}</div>
+        <div class="text-xs text-gray-400 truncate" dir="ltr">${esc(c.label.fr)} · ${esc(c.id)} · ${counts[c.id] || 0} أطباق</div>
+      </div>
+      <div class="flex items-center gap-1 whitespace-nowrap">
+        <button data-action="cat-up" data-id="${esc(c.id)}" ${i === 0 ? 'disabled' : ''} aria-label="رفع" class="press px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-xs"><i class="fa-solid fa-arrow-up" aria-hidden="true"></i></button>
+        <button data-action="cat-down" data-id="${esc(c.id)}" ${i === cats.length - 1 ? 'disabled' : ''} aria-label="خفض" class="press px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-xs"><i class="fa-solid fa-arrow-down" aria-hidden="true"></i></button>
+        <button data-action="cat-edit" data-id="${esc(c.id)}" class="press px-3 py-1.5 bg-blue-100 text-blue-700 hover:bg-blue-200 rounded text-xs font-bold"><i class="fa-solid fa-pen ml-1" aria-hidden="true"></i>تعديل</button>
+        <button data-action="cat-delete" data-id="${esc(c.id)}" aria-label="حذف القسم" class="press px-3 py-1.5 bg-red-100 text-red-700 hover:bg-red-200 rounded text-xs font-bold"><i class="fa-solid fa-trash" aria-hidden="true"></i></button>
+      </div>
+    </li>`).join('')
+    : `<li class="p-10 text-center text-gray-400 text-sm"><i class="fa-solid fa-layer-group text-3xl mb-2 block" aria-hidden="true"></i>لا توجد أقسام بعد — أضف قسماً أو استعمل «إضافة أقسام مقترحة».</li>`;
+
+  /* Dishes pointing to a category that is not registered */
+  const orphans = Object.keys(counts).filter(id => !catsCache[id] && CAT_ID_RE.test(id));
+  const box = $('cats-orphans');
+  box.classList.toggle('hidden', !orphans.length);
+  box.innerHTML = orphans.length
+    ? `<p class="font-bold"><i class="fa-solid fa-circle-info ml-1" aria-hidden="true"></i> أطباق مرتبطة بأقسام غير مسجلة (لن تظهر في شريط الأقسام للزبائن):</p>
+       <div class="flex flex-wrap gap-2">${orphans.map(id => `<button data-action="cat-register" data-id="${esc(id)}" class="press bg-white border border-amber-300 hover:bg-amber-100 rounded-lg px-3 py-1 font-bold" dir="ltr">+ ${esc(id)} (${counts[id]})</button>`).join('')}</div>`
+    : '';
+}
+
+function resetCatForm() {
+  $('cat-form').reset();
+  $('cat-id').value = '';
+  $('cat-save-btn').textContent = 'إضافة القسم';
+  $('cat-cancel-btn').classList.add('hidden');
+}
+function editCategory(id) {
+  const c = catsSorted().find(x => x.id === id); if (!c) return;
+  $('cat-id').value = id;
+  $('cat-fr').value = c.label.fr || '';
+  $('cat-ar').value = c.label.ar || '';
+  $('cat-icon').value = CAT_ICONS.some(([v]) => v === c.icon) ? c.icon : 'fa-utensils';
+  $('cat-save-btn').textContent = 'حفظ التعديل';
+  $('cat-cancel-btn').classList.remove('hidden');
+  $('cat-fr').focus();
+}
+
+async function saveCategory(e) {
+  e.preventDefault();
+  if (!firebaseReady) return;
+  if (suspended) { showSuspendedOverlay(); return; }
+  const id = $('cat-id').value;
+  const fr = $('cat-fr').value.trim(), ar = $('cat-ar').value.trim() || fr, icon = $('cat-icon').value;
+  if (!fr) return;
+  const btn = $('cat-save-btn'), idle = btn.textContent;
+  btn.disabled = true;
+  try {
+    if (id) {
+      await update(tenantRef('config/categories/' + id), { label: { fr, ar }, icon });
+    } else {
+      let base = slugify(fr) || ('cat-' + Date.now().toString(36));
+      if (['all', 'popular'].includes(base)) base += '-menu';
+      let cid = base, n = 2;
+      while (catsCache[cid]) cid = base + '-' + (n++);
+      await set(tenantRef('config/categories/' + cid), { id: cid, label: { fr, ar }, icon, order: maxCatOrder() + 10 });
+    }
+    resetCatForm();
+  } catch (err) { alert(err.message); }
+  finally { btn.disabled = false; if (!$('cat-id').value) btn.textContent = 'إضافة القسم'; else btn.textContent = idle; }
+}
+
+function moveCat(id, dir) {
+  const list = catsSorted().map(c => c.id);
+  const i = list.indexOf(id), j = i + dir;
+  if (i < 0 || j < 0 || j >= list.length) return;
+  [list[i], list[j]] = [list[j], list[i]];
+  const updates = {};
+  list.forEach((cid, k) => { updates[cid + '/order'] = (k + 1) * 10; });
+  return run(update(tenantRef('config/categories'), updates));
+}
+
+function deleteCategory(id) {
+  const c = catsSorted().find(x => x.id === id); if (!c) return;
+  const used = Object.values(menuCache).filter(it => it && it.category === id).length;
+  const msg = used
+    ? `حذف القسم «${catName(c)}»؟ يوجد ${used} أطباق مرتبطة به؛ ستبقى الأطباق لكن دون قسم ظاهر للزبائن حتى تعيد تعيين قسمها.`
+    : `حذف القسم «${catName(c)}»؟`;
+  if (confirm(msg)) run(remove(tenantRef('config/categories/' + id)));
+}
+
+/* Category <select> inside the dish modal */
+function renderCategorySelect(selected) {
+  const sel = $('item-category');
+  const cats = catsSorted();
+  let html = cats.length
+    ? '<option value="">— اختر القسم —</option>'
+    : '<option value="">— أنشئ قسماً أولاً من تبويب الأقسام —</option>';
+  html += cats.map(c => `<option value="${esc(c.id)}">${esc(catName(c))}</option>`).join('');
+  if (selected && !catsCache[selected]) html += `<option value="${esc(selected)}">${esc(selected)} (غير مسجل)</option>`;
+  sel.innerHTML = html;
+  sel.value = selected || '';
+}
+
 /* ---------- Menu management ---------- */
 let menuCache = {};
 
@@ -491,14 +725,19 @@ const SEED_MENU = {
     image: 'https://images.unsplash.com/photo-1604382354936-07c5d9983bd3?auto=format&fit=crop&w=600&q=80',
     description: { fr: "Sauce tomate San Marzano, mozzarella de bufflonne fraîche, basilic et huile d'olive.", ar: 'صلصة طماطم سان مارزانو، جبن موزاريلا بوفالو طازج، حبق وزيت زيتون.' } }
 };
+/* Template items only: real keys are always generated with push(), never the p1/p2 template keys */
+const SEED_ITEMS = Object.values(SEED_MENU);
 
+/* Runs once per restaurant. Both writes are atomic and commit ONLY while the target node is still empty. */
 async function seedMenuIfEmpty() {
   try {
     const flag = await runTransaction(tenantRef('meta/menuSeeded'), cur => cur ? undefined : true);
     if (!flag.committed) return;
     try {
-      const snap = await get(tenantRef('menu'));
-      if (!snap.exists()) await set(tenantRef('menu'), SEED_MENU);
+      const seededMenu = Object.fromEntries(SEED_ITEMS.map(it => [push(tenantRef('menu')).key, it]));
+      const seededCats = Object.fromEntries(DEMO_CATS.map((c, i) => [c.id, { id: c.id, label: { fr: c.fr, ar: c.ar }, icon: c.icon, order: (i + 1) * 10 }]));
+      const m = await runTransaction(tenantRef('menu'), cur => cur === null ? seededMenu : undefined);
+      if (m.committed) await runTransaction(tenantRef('config/categories'), cur => cur === null ? seededCats : undefined);
     } catch (err) {
       await remove(tenantRef('meta/menuSeeded'));
       throw err;
@@ -510,6 +749,7 @@ function startMenu() {
   return onValue(tenantRef('menu'), snap => {
     menuCache = snap.val() || {};
     renderMenu();
+    renderCats();
   }, err => {
     $('menu-table-body').innerHTML = `<tr><td colspan="6" class="p-8 text-center text-red-600 font-bold">تعذر تحميل المنيو: ${esc(err.message)}</td></tr>`;
     showFbError('تعذر الاتصال بقاعدة البيانات. تحقق من الإنترنت أو من صلاحيات قاعدة البيانات.');
@@ -521,13 +761,14 @@ function renderMenu() {
   $('menu-count').textContent = entries.length;
   $('menu-table-body').innerHTML = entries.length ? entries.map(([id, item]) => {
     const n = L(item.name), eid = esc(id);
+    const cat = catsCache[item.category] ? catName(catsSorted().find(c => c.id === item.category)) : item.category;
     const old = item.oldPrice && item.oldPrice > item.price ? `<span class="text-xs text-gray-400 line-through mr-1">${money(item.oldPrice)}</span>` : '';
     return `
       <tr class="hover:bg-gray-50">
-        <td class="p-4"><img src="${esc(item.image)}" class="w-12 h-12 rounded-lg object-cover shadow-sm bg-gray-100" alt="" onerror="this.style.visibility='hidden'"></td>
+        <td class="p-4"><img src="${esc(item.image)}" class="w-12 h-12 rounded-lg object-cover shadow-sm bg-gray-100" alt="" loading="lazy" onerror="this.style.visibility='hidden'"></td>
         <td class="p-4"><div class="font-bold text-gray-800">${esc(n.ar || n.fr)} ${item.popular ? '<i class="fa-solid fa-star text-amber-500 text-xs" title="شائع"></i>' : ''}</div>
           <div class="text-xs text-gray-400" dir="ltr">${esc(n.fr)}</div></td>
-        <td class="p-4 text-gray-500">${esc(item.category)}</td>
+        <td class="p-4 text-gray-500">${esc(cat)}</td>
         <td class="p-4 whitespace-nowrap"><span class="font-semibold text-emerald-600">${money(item.price)}</span> ${old}</td>
         <td class="p-4"><span class="px-2 py-1 rounded text-xs font-bold whitespace-nowrap ${item.soldOut ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}">${item.soldOut ? 'نفذت الكمية' : 'متوفر'}</span></td>
         <td class="p-4 text-center whitespace-nowrap">
@@ -555,12 +796,16 @@ function closeItemModal(immediate) {
   setTimeout(done, 160);
 }
 function updateImagePreview() {
-  const v = $('item-image').value.trim(), img = $('image-preview');
+  const v = $('item-image').value.trim(), img = $('image-preview'), info = $('image-size');
   if (v) { img.src = v; img.classList.remove('hidden'); } else { img.removeAttribute('src'); img.classList.add('hidden'); }
+  if (!v) info.textContent = '';
+  else if (v.startsWith('data:')) info.textContent = `${(v.length * 0.75 / 1024).toFixed(0)} KB — ${v.length > IMG_HARD_LIMIT ? 'كبيرة جداً، اختر الصورة من جديد' : 'مضغوطة'}`;
+  else info.textContent = 'رابط خارجي (لا يُخزَّن في قاعدة البيانات)';
 }
 function openAddModal() {
   $('item-form').reset();
   $('item-id').value = '';
+  renderCategorySelect('');
   $('modal-title').textContent = 'إضافة طبق جديد';
   updateImagePreview();
   openItemModal();
@@ -571,7 +816,7 @@ function editMenuItem(id) {
   $('item-id').value = id;
   $('item-name-fr').value = n.fr || '';
   $('item-name-ar').value = n.ar || '';
-  $('item-category').value = it.category || '';
+  renderCategorySelect(it.category || '');
   $('item-price').value = it.price ?? '';
   $('item-old-price').value = it.oldPrice ?? '';
   $('item-image').value = it.image || '';
@@ -583,27 +828,44 @@ function editMenuItem(id) {
   openItemModal();
 }
 
-/* Local image -> resized WebP/JPEG -> Base64 data URL (kept small so it fits in the Realtime Database) */
+/* ---- Image pipeline: decode -> flatten on white -> shrink until the data URL fits the budget ---- */
+function encodeCanvas(canvas, q) {
+  let d = canvas.toDataURL('image/webp', q);
+  if (!d.startsWith('data:image/webp')) d = canvas.toDataURL('image/jpeg', q);   // browsers without WebP encoding
+  return d;
+}
+function compressToBudget(img) {
+  let side = IMG_MAX_SIDE, best = '';
+  for (;;) {
+    const scale = Math.min(1, side / Math.max(img.width, img.height));
+    const w = Math.max(1, Math.round(img.width * scale)), h = Math.max(1, Math.round(img.height * scale));
+    const canvas = document.createElement('canvas');
+    canvas.width = w; canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h);
+    ctx.drawImage(img, 0, 0, w, h);
+    for (let q = 0.8; q >= 0.39; q -= 0.1) {
+      best = encodeCanvas(canvas, q);
+      if (best.length <= IMG_TARGET_CHARS) return best;
+    }
+    if (side <= IMG_MIN_SIDE) return best;
+    side = Math.round(side * 0.8);
+  }
+}
 function processImageFile(file) {
   if (!file) return;
-  if (!file.type.startsWith('image/')) { alert('المرجو اختيار صورة صالحة فقط'); return; }
+  if (!file.type || !file.type.startsWith('image/')) { alert('المرجو اختيار صورة صالحة فقط'); return; }
+  if (file.size > IMG_MAX_FILE_BYTES) { alert('حجم الصورة كبير جداً (الحد الأقصى 15 ميغابايت).'); return; }
+  const info = $('image-size');
+  info.textContent = 'جاري ضغط الصورة...';
   const reader = new FileReader();
-  reader.onerror = () => alert('تعذر قراءة الملف.');
+  reader.onerror = () => { info.textContent = ''; alert('تعذر قراءة الملف.'); };
   reader.onload = evt => {
     const img = new Image();
-    img.onerror = () => alert('تعذر فتح هذه الصورة.');
+    img.onerror = () => { info.textContent = ''; alert('تعذر فتح هذه الصورة.'); };
     img.onload = () => {
-      const MAX = 400;
-      let w = img.width, h = img.height;
-      if (w > h) { if (w > MAX) { h = Math.round(h * MAX / w); w = MAX; } }
-      else       { if (h > MAX) { w = Math.round(w * MAX / h); h = MAX; } }
-      const canvas = document.createElement('canvas');
-      canvas.width = w; canvas.height = h;
-      const ctx = canvas.getContext('2d');
-      ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h);   // flatten transparent PNGs onto white
-      ctx.drawImage(img, 0, 0, w, h);
-      let data = canvas.toDataURL('image/webp', 0.8);
-      if (!data.startsWith('data:image/webp')) data = canvas.toDataURL('image/jpeg', 0.8);
+      const data = compressToBudget(img);
+      if (data.length > IMG_HARD_LIMIT) { info.textContent = ''; alert('تعذر ضغط الصورة بالقدر الكافي. اختر صورة أبسط أو استعمل رابطاً https.'); return; }
       $('item-image').value = data;
       updateImagePreview();
     };
@@ -611,19 +873,31 @@ function processImageFile(file) {
   };
   reader.readAsDataURL(file);
 }
+function imageError(v) {
+  if (!v) return 'الرجاء إضافة صورة للطبق.';
+  if (/^https:\/\//.test(v)) return v.length > 2000 ? 'رابط الصورة طويل جداً.' : '';
+  if (/^data:image\/(webp|jpeg);base64,/.test(v)) return v.length > IMG_HARD_LIMIT ? 'الصورة كبيرة جداً، اخترها من جديد ليتم ضغطها.' : '';
+  return 'يجب أن يبدأ رابط الصورة بـ https:// أو اختر ملفاً من جهازك.';
+}
 
 async function saveMenuItem(e) {
   e.preventDefault();
   if (!firebaseReady) return;
+  if (suspended) { showSuspendedOverlay(); return; }
   const id = $('item-id').value, oldP = $('item-old-price').value;
   const nameFr = $('item-name-fr').value.trim(), descFr = $('item-desc-fr').value.trim();
+  const image = $('item-image').value.trim();
+  const imgErr = imageError(image);
+  if (imgErr) { alert(imgErr); return; }
+  const category = $('item-category').value.trim();
+  if (!category) { alert('اختر قسماً للطبق (أنشئ الأقسام من تبويب «الأقسام»).'); return; }
   const data = {
     name: { fr: nameFr, ar: $('item-name-ar').value.trim() || nameFr },
     description: { fr: descFr, ar: $('item-desc-ar').value.trim() || descFr },
-    category: $('item-category').value.trim().toLowerCase(),
+    category,
     price: parseFloat($('item-price').value),
     oldPrice: oldP ? parseFloat(oldP) : null,
-    image: $('item-image').value.trim(),
+    image,
     popular: $('item-popular').checked
   };
   const btn = $('item-save-btn');
@@ -641,56 +915,68 @@ async function saveMenuItem(e) {
 
 /* ---------- Dashboard lifecycle ---------- */
 let unsubs = [];
-let sessionGen = 0;   // bumps on every auth change / logout so a slow async check can't revive a closed session
+let sessionGen = 0;
 
-function startDashboard() {
+function startDashboard(override) {
   stopDashboard();
-  unsubs = [startOrders(), startMenu(), watchStatus()];
-  seedMenuIfEmpty();
+  unsubs = [startOrders(), startMenu(), startCategories()];
+  if (!override) {
+    unsubs.push(watchStatus());
+    seedMenuIfEmpty();
+  }
 }
 
-/* If the admin suspends the subscription while the panel is open, sign out immediately */
+/* Subscription changes never log the owner out: the dashboard turns read-only with the renewal screen */
 function watchStatus() {
-  const cache = {};
-  const offs = STATUS_KEYS.map(k => onValue(tenantRef(k), snap => {
-    cache[k] = snap.exists() ? snap.val() : null;
-    if (!isRestaurantActive(cache)) logout(INACTIVE_MSG);
-  }, () => {}));
-  return () => offs.forEach(off => { try { off(); } catch (e) {} });
+  return onValue(tenantRef('active'), snap => setSuspended(!isRestaurantActive(snap.val())), () => {});
 }
 
 function stopDashboard() {
   unsubs.forEach(u => { try { u(); } catch (e) {} });
   unsubs = [];
-  orders = {}; menuCache = {}; knownIds = new Set(); firstLoad = true;
+  orders = {}; menuCache = {}; catsCache = {}; knownIds = new Set(); firstLoad = true;
   animatedOrders.clear();
+  suspended = false;
+  $('suspended-banner').classList.add('hidden');
+  hideSuspendedOverlay();
 }
 
-function enterApp(id, email) {
+function enterApp(id, email, override, name) {
   RID = id;
+  overrideMode = !!override;
   $('rid-label').textContent = id;
-  $('user-email').textContent = email || '';
+  $('user-email').textContent = override ? `${email || ''} (مشرف عام)` : (email || '');
+  setOverrideUI(overrideMode, name);
   try {
     const u = new URL(location.href);
-    u.searchParams.set('restaurant_id', id);
+    if (override) u.searchParams.delete('restaurant_id');
+    else u.searchParams.set('restaurant_id', id);
     history.replaceState(null, '', u.pathname + u.search + location.hash);
   } catch (e) {}
   showScreen('app');
-  switchTab(location.hash === '#menu' ? 'menu' : 'orders');
+  const h = location.hash.slice(1);
+  switchTab(TAB_BTN[h] ? h : 'orders');
+}
+
+function exitOverrideMode() {
+  sessionGen++;
+  clearOverrideHint();
+  stopDashboard();
+  location.href = ADMIN_PANEL_URL;
 }
 
 /* ---------- Authentication ---------- */
 class AccessError extends Error {}
 
-/* Direct reads of the restaurant's own node (no queries, no reads of the restaurants root).
-   Only the fields needed for the check are downloaded (never the password, orders or menu). */
-async function readRestaurantAccess(rid) {
+async function readRestaurantAccess(rid, withName) {
   const read = async path => {
     const snap = await get(ref(db, `restaurants/${rid}/${path}`));
     return snap.exists() ? snap.val() : null;
   };
-  const [email, ...values] = await Promise.all([read('email'), ...STATUS_KEYS.map(read)]);
-  return { email, status: Object.fromEntries(STATUS_KEYS.map((k, i) => [k, values[i]])) };
+  const [email, name, active] = await Promise.all([
+    read('email'), withName ? read('name') : Promise.resolve(null), read('active')
+  ]);
+  return { email, name, active };
 }
 
 const isPermissionDenied = err => /permission[_ ]denied/i.test(String((err && (err.code || err.message)) || ''));
@@ -711,44 +997,60 @@ function authMessage(err) {
   return map[err && err.code] || 'تعذر تسجيل الدخول: ' + ((err && err.message) || err);
 }
 
-/* Single entry point for every session change (login, page reload, logout, suspension) */
 async function handleAuthState(user) {
   const gen = ++sessionGen;
 
-  if (!user) { showLoggedOut(); return; }
-
-  const rid = cleanId(requestedRid || pendingRid || store.get(KEY_RID));
-  if (!rid) {
-    /* A session exists (for example an admin account) but no restaurant was specified */
-    showLoggedOut('أدخل معرّف المطعم أو افتح اللوحة من الرابط الخاص بالمطعم.');
+  if (!user) {
+    overrideMode = false;
+    clearOverrideHint();
+    showLoggedOut();
     return;
   }
 
   showScreen('boot');
   let isAdmin = false;
   try {
-    const token = await user.getIdTokenResult();
+    const token = await user.getIdTokenResult(true);
+    if (gen !== sessionGen) return;
     isAdmin = token.claims.admin === true;
+
+    let rid, override = false;
+    if (isAdmin) {
+      if (!user.emailVerified) throw new AccessError('يجب تأكيد البريد الإلكتروني لحساب المشرف قبل فتح وضع الإدارة.');
+      const hint = readOverrideHint(user);
+      if (!hint) { showLoggedOut(ADMIN_NO_TARGET_MSG, { adminLink: true }); return; }
+      rid = hint.restId;
+      override = true;
+    } else {
+      clearOverrideHint();
+      rid = cleanId(requestedRid || pendingRid || store.get(KEY_RID));
+      if (!rid) {
+        showLoggedOut('أدخل معرّف المطعم أو افتح اللوحة من الرابط الخاص بالمطعم.');
+        return;
+      }
+    }
     RID = rid;
 
-    const info = await readRestaurantAccess(rid);                      // direct read: restaurants/{rid}/...
+    const info = await readRestaurantAccess(rid, override);
     if (gen !== sessionGen) return;
 
     if (info.email === null) throw new AccessError('المطعم غير موجود. تأكد من معرّف المطعم.');
-    if (!isAdmin && !emailMatch(user.email, info.email)) {             // signed-in e-mail must equal restaurants/{rid}/email
+    if (!override && !emailMatch(user.email, info.email)) {
       throw new AccessError('هذا الحساب لا يخص المطعم المحدد.');
     }
-    if (!isRestaurantActive(info.status)) throw new AccessError(INACTIVE_MSG);
+    /* No subscription lock here: a suspended owner still gets in (read-only + renewal screen) */
 
-    if (!isAdmin) {                                                    // hints only (never the password)
+    if (!override) {
       store.set(KEY_RID, rid);
       store.set(KEY_EMAIL, user.email || '');
     }
     pendingRid = '';
     loginMessage = '';
+    loginAdminLink = false;
     $('login-password').value = '';
-    enterApp(rid, user.email);
-    startDashboard();
+    enterApp(rid, user.email, override, info.name);
+    startDashboard(override);
+    if (!override) setSuspended(!isRestaurantActive(info.active));   // overlay on first paint
   } catch (err) {
     if (gen !== sessionGen) return;
     console.error('Access check failed:', err);
@@ -756,10 +1058,16 @@ async function handleAuthState(user) {
     const msg = err instanceof AccessError
       ? err.message
       : isPermissionDenied(err)
-        ? 'تم رفض الوصول إلى بيانات المطعم (Permission denied). تأكد أن بريد حساب الدخول مطابق للبريد المسجل في بيانات المطعم، وأن قواعد Firebase تسمح للمالك بقراءة restaurants/{id}.'
+        ? (isAdmin
+            ? 'تم رفض الوصول (Permission denied). تأكد أن قواعد قاعدة البيانات تمنح حسابات المشرف (admin: true) صلاحية القراءة والكتابة على restaurants/{id}.'
+            : 'تم رفض الوصول إلى بيانات المطعم (Permission denied). تأكد أن حساب الدخول مرتبط بهذا المطعم (uid) وأن قواعد Firebase تسمح للمالك بقراءة restaurants/{id}.')
         : 'تعذر التحقق من الحساب. تحقق من الاتصال بالإنترنت ثم أعد المحاولة.';
-    if (isAdmin) showLoggedOut(msg);       // keep the shared admin session alive
-    else logout(msg);
+    if (isAdmin) {
+      if (err instanceof AccessError) clearOverrideHint();
+      showLoggedOut(msg, { adminLink: true });
+    } else {
+      logout(msg);
+    }
   }
 }
 
@@ -769,6 +1077,8 @@ async function handleLogin(e) {
   const rid = cleanId(requestedRid || $('login-rid-input').value || store.get(KEY_RID));
   const btn = $('login-btn'), idle = 'تسجيل الدخول';
   loginMessage = '';
+  loginAdminLink = false;
+  $('login-admin-link').classList.add('hidden');
   showLoginError('');
 
   if (!rid) { showLoginError('الرجاء إدخال معرّف المطعم.'); return; }
@@ -779,7 +1089,6 @@ async function handleLogin(e) {
     await ensureFirebase();
     pendingRid = rid;
     await signInWithEmailAndPassword(auth, email, password);
-    /* onAuthStateChanged -> handleAuthState() now reads restaurants/{rid} directly and checks the e-mail */
   } catch (ex) {
     pendingRid = '';
     showLoginError(authMessage(ex));
@@ -789,12 +1098,17 @@ async function handleLogin(e) {
   }
 }
 
-/* Reset the UI to the login screen (idempotent; `message` is kept until the next login attempt) */
-function showLoggedOut(message) {
-  if (message !== undefined) loginMessage = message;
+function showLoggedOut(message, opts) {
+  if (message !== undefined) {
+    loginMessage = message;
+    loginAdminLink = !!(opts && opts.adminLink);
+  }
+  overrideMode = false;
+  setOverrideUI(false);
   stopDashboard();
   closeItemModal(true);
   $('item-form').reset();
+  resetCatForm();
   $('fb-error').classList.add('hidden');
   $('login-password').value = '';
   if (!loginMessage) $('login-email').value = '';
@@ -809,9 +1123,11 @@ function showLoggedOut(message) {
   switchTab('orders');
   showScreen('login');
   showLoginError(loginMessage);
+  $('login-admin-link').classList.toggle('hidden', !loginAdminLink);
 }
 
 function logout(message) {
+  if (overrideMode) { exitOverrideMode(); return; }
   sessionGen++;
   store.clearSession();
   showLoggedOut(typeof message === 'string' ? message : '');
@@ -819,11 +1135,14 @@ function logout(message) {
 }
 window.logout = () => logout();
 
-/* ---------- Actions (single delegated click handler) ---------- */
+/* ---------- Actions ---------- */
 const run = p => Promise.resolve(p).catch(err => alert(err.message));
 const actions = {
   'tab':            id => switchTab(id),
   'logout':         () => logout(),
+  'exit-override':  () => exitOverrideMode(),
+  'show-suspended': () => showSuspendedOverlay(),
+  'hide-suspended': () => hideSuspendedOverlay(),
   'toggle-password': (_, el) => {
     const i = $('login-password'); i.type = i.type === 'password' ? 'text' : 'password';
     el.firstElementChild.className = i.type === 'password' ? 'fa-regular fa-eye' : 'fa-regular fa-eye-slash';
@@ -835,17 +1154,46 @@ const actions = {
   'edit-item':      id => editMenuItem(id),
   'toggle-soldout': (id, el) => run(update(tenantRef(`menu/${id}`), { soldOut: el.dataset.sold === '1' })),
   'delete-item':    id => { if (confirm('هل تريد حذف هذا الطبق من المنيو بشكل نهائي؟')) run(remove(tenantRef(`menu/${id}`))); },
+  /* Adds only the template dishes that are not there yet, under brand-new unique keys. Never touches existing dishes. */
   'restore-demo':   async () => {
-    if (!confirm('سيتم إضافة الأطباق التجريبية. متابعة؟')) return;
-    try { await update(tenantRef('menu'), SEED_MENU); } catch (err) { alert(err.message); }
+    if (!confirm('سيتم إضافة الأطباق التجريبية غير الموجودة فقط، دون تغيير أو حذف أي طبق حالي. متابعة؟')) return;
+    try {
+      const have = new Set(Object.values(menuCache).filter(i => i && typeof i === 'object').map(i => String(L(i.name).fr).trim().toLowerCase()));
+      const toAdd = SEED_ITEMS.filter(i => !have.has(i.name.fr.trim().toLowerCase()));
+      if (!toAdd.length) { alert('الأطباق التجريبية موجودة مسبقاً.'); return; }
+      const updates = {};
+      toAdd.forEach(i => { updates[push(tenantRef('menu')).key] = i; });
+      await update(tenantRef('menu'), updates);
+      let o = maxCatOrder();
+      for (const c of DEMO_CATS) {
+        if (toAdd.some(i => i.category === c.id) && !catsCache[c.id]) { o += 10; await addCategoryIfMissing(c, o); }
+      }
+    } catch (err) { alert(err.message); }
   },
   'close-modal':    () => closeItemModal(),
-  'pick-file':      () => $('dishFileInput').click()
+  'pick-file':      () => $('dishFileInput').click(),
+  'cat-edit':       id => editCategory(id),
+  'cat-cancel':     () => resetCatForm(),
+  'cat-up':         id => moveCat(id, -1),
+  'cat-down':       id => moveCat(id, 1),
+  'cat-delete':     id => deleteCategory(id),
+  'cat-register':   id => run(addCategoryIfMissing({ id, fr: id, ar: id, icon: 'fa-utensils' }, maxCatOrder() + 10)),
+  'cat-suggest':    async () => {
+    try {
+      let o = maxCatOrder();
+      for (const c of SUGGESTED_CATS) {
+        if (catsCache[c.id]) continue;
+        o += 10;
+        await addCategoryIfMissing(c, o);
+      }
+    } catch (err) { alert(err.message); }
+  }
 };
 
 document.addEventListener('click', e => {
   const el = e.target.closest('[data-action]');
   if (!el) return;
+  if (suspended && WRITE_ACTIONS.has(el.dataset.action)) { showSuspendedOverlay(); return; }
   const fn = actions[el.dataset.action];
   if (fn) fn(el.dataset.id, el);
 });
@@ -855,11 +1203,11 @@ document.addEventListener('keydown', e => {
 });
 $('login-form').addEventListener('submit', handleLogin);
 $('item-form').addEventListener('submit', saveMenuItem);
+$('cat-form').addEventListener('submit', saveCategory);
 $('item-image').addEventListener('input', updateImagePreview);
 $('dishFileInput').addEventListener('change', e => { processImageFile(e.target.files[0]); e.target.value = ''; });
 $('item-modal').addEventListener('click', e => { if (e.target === $('item-modal')) closeItemModal(); });
 
-/* Drag & drop onto the dish drop zone */
 (() => {
   const zone = $('dishDropZone');
   ['dragenter', 'dragover'].forEach(ev => zone.addEventListener(ev, e => { e.preventDefault(); zone.classList.add('dragover'); }));
@@ -870,7 +1218,7 @@ $('item-modal').addEventListener('click', e => { if (e.target === $('item-modal'
 /* ---------- Boot ---------- */
 function boot() {
   const storedRid = cleanId(store.get(KEY_RID));
-  const hadSession = !!(storedRid && store.get(KEY_EMAIL));
+  const hadSession = !!(storedRid && store.get(KEY_EMAIL)) || hasOverrideHint();
 
   if (requestedRid) {
     $('login-rid').textContent = requestedRid;
@@ -880,7 +1228,6 @@ function boot() {
     $('login-rid-input').value = storedRid;
   }
 
-  /* A remembered session shows a spinner while Firebase restores it; otherwise the login form appears instantly */
   showScreen(hadSession ? 'boot' : 'login');
 
   ensureFirebase().catch(err => {
