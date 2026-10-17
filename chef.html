@@ -291,6 +291,7 @@
    Categories: restaurants/{rid}/config/categories/{id} = { id, label:{fr,ar}, icon, order }
      -> read by index.html (config) and shown as the chips ribbon.
    Images: resized + compressed in the browser to a small budget before being stored.
+   Receipt header: shows restaurants/{rid}/name (never the raw restaurant id).
    ===================================================================== */
 
 const FIREBASE_VERSION = '10.8.0';
@@ -336,12 +337,24 @@ const STATUS = {
   completed: { label: 'مكتمل', cls: 'bg-emerald-100 text-emerald-800 border-emerald-300' }
 };
 
+/* ---------- Restaurant display name (used on printed receipts) ---------- */
+/* The `name` field may be a plain string or a { fr, ar } object. Returns '' when empty. */
+function nameFromValue(v) {
+  if (v === null || v === undefined) return '';
+  if (typeof v === 'object') return String(v.fr || v.ar || '').trim();
+  return String(v).trim();
+}
+/* True when the string looks like a Firebase push id, so it must never be printed as a name.
+   (A name that happens to equal the restaurant id, e.g. "fikra-resto", is a valid name and is allowed.) */
+const looksLikeRawId = s => !!s && /^-[A-Za-z0-9_-]{15,}$/.test(s);
+let RNAME = '';   // cached restaurant name for the current tenant
+
 /* ---------- Subscription (single field: active === true) ---------- */
 const isRestaurantActive = v => v === true;
 let suspended = false;
 function showSuspendedOverlay() {
   const mail = $('susp-mail'), wa = $('susp-wa');
-  if (SUPPORT_EMAIL) { mail.href = 'mailto:' + SUPPORT_EMAIL + '?subject=' + encodeURIComponent('Renouvellement abonnement - ' + RID); mail.classList.remove('hidden'); }
+  if (SUPPORT_EMAIL) { mail.href = 'mailto:' + SUPPORT_EMAIL + '?subject=' + encodeURIComponent('Renouvellement abonnement - ' + (RNAME || RID)); mail.classList.remove('hidden'); }
   if (SUPPORT_WHATSAPP) { wa.href = 'https://wa.me/' + SUPPORT_WHATSAPP; wa.classList.remove('hidden'); }
   const o = $('suspended-overlay'); o.classList.remove('hidden'); o.classList.add('flex');
   $('susp-continue').focus();
@@ -492,6 +505,14 @@ function startOrders() {
   });
 }
 
+/* Keeps RNAME in sync with restaurants/{rid}/name (live, so a rename is picked up without reload) */
+function startRestaurantName() {
+  return onValue(tenantRef('name'), snap => {
+    const n = nameFromValue(snap.exists() ? snap.val() : null);
+    if (n) RNAME = n;
+  }, err => { console.warn('Could not read restaurant name:', err); });
+}
+
 function renderOrders() {
   const entries = Object.entries(orders)
     .filter(([, o]) => o && typeof o === 'object')
@@ -547,10 +568,29 @@ function renderOrders() {
   entries.forEach(([id]) => animatedOrders.add(id));
 }
 
-function printOrder(id) {
+/* Resolves the restaurant name for the receipt header.
+   Uses the cached value; if it has not loaded yet, waits (briefly) for the database before printing.
+   Never returns a push-id-like string: falls back to a clean generic label instead. */
+async function resolveReceiptName() {
+  if (RNAME && !looksLikeRawId(RNAME)) return RNAME;
+  if (firebaseReady && RID) {
+    try {
+      const snap = await Promise.race([
+        get(tenantRef('name')),
+        new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 3000))
+      ]);
+      const n = snap && snap.exists() ? nameFromValue(snap.val()) : '';
+      if (n && !looksLikeRawId(n)) { RNAME = n; return n; }
+    } catch (e) { console.warn('Restaurant name unavailable for receipt:', e); }
+  }
+  return 'Restaurant';
+}
+
+async function printOrder(id) {
   const o = orders[id]; if (!o || typeof o !== 'object') return;
+  const restaurantName = await resolveReceiptName();
   $('print-area').innerHTML = `
-    <div style="text-align:center;font-weight:bold;font-size:14px">${esc(RID)}</div>
+    <div style="text-align:center;font-weight:bold;font-size:14px">${esc(restaurantName)}</div>
     <div style="text-align:center">Table ${esc(o.tableNumber ?? o.table)} — ${o.timestamp ? new Date(o.timestamp).toLocaleString() : ''}</div>
     <hr>
     ${itemsOf(o).map(i => `<div class="row"><span>${esc(i.quantity)}× ${esc(i.name)}</span><span>${money(i.price * i.quantity)}</span></div>`).join('')}
@@ -919,7 +959,7 @@ let sessionGen = 0;
 
 function startDashboard(override) {
   stopDashboard();
-  unsubs = [startOrders(), startMenu(), startCategories()];
+  unsubs = [startOrders(), startMenu(), startCategories(), startRestaurantName()];
   if (!override) {
     unsubs.push(watchStatus());
     seedMenuIfEmpty();
@@ -935,6 +975,7 @@ function stopDashboard() {
   unsubs.forEach(u => { try { u(); } catch (e) {} });
   unsubs = [];
   orders = {}; menuCache = {}; catsCache = {}; knownIds = new Set(); firstLoad = true;
+  RNAME = '';
   animatedOrders.clear();
   suspended = false;
   $('suspended-banner').classList.add('hidden');
@@ -944,9 +985,10 @@ function stopDashboard() {
 function enterApp(id, email, override, name) {
   RID = id;
   overrideMode = !!override;
+  RNAME = nameFromValue(name);
   $('rid-label').textContent = id;
   $('user-email').textContent = override ? `${email || ''} (مشرف عام)` : (email || '');
-  setOverrideUI(overrideMode, name);
+  setOverrideUI(overrideMode, RNAME || undefined);
   try {
     const u = new URL(location.href);
     if (override) u.searchParams.delete('restaurant_id');
@@ -973,9 +1015,9 @@ async function readRestaurantAccess(rid, withName) {
     const snap = await get(ref(db, `restaurants/${rid}/${path}`));
     return snap.exists() ? snap.val() : null;
   };
-  const [email, name, active] = await Promise.all([
-    read('email'), withName ? read('name') : Promise.resolve(null), read('active')
-  ]);
+  /* The name is cosmetic (receipt header / banner): a failed read must never block login */
+  const readName = () => withName ? read('name').catch(err => { console.warn('Name read failed:', err); return null; }) : Promise.resolve(null);
+  const [email, name, active] = await Promise.all([read('email'), readName(), read('active')]);
   return { email, name, active };
 }
 
@@ -1031,7 +1073,8 @@ async function handleAuthState(user) {
     }
     RID = rid;
 
-    const info = await readRestaurantAccess(rid, override);
+    /* Always read the name (owner and admin) so the receipt header has it from the first paint */
+    const info = await readRestaurantAccess(rid, true);
     if (gen !== sessionGen) return;
 
     if (info.email === null) throw new AccessError('المطعم غير موجود. تأكد من معرّف المطعم.');
@@ -1148,7 +1191,7 @@ const actions = {
     el.firstElementChild.className = i.type === 'password' ? 'fa-regular fa-eye' : 'fa-regular fa-eye-slash';
   },
   'set-status':     (id, el) => run(update(tenantRef(`orders/${id}`), { status: el.dataset.status })),
-  'print-order':    id => printOrder(id),
+  'print-order':    id => run(printOrder(id)),
   'delete-order':   id => { if (confirm('هل أنت متأكد من حذف هذا الطلب؟')) run(remove(tenantRef(`orders/${id}`))); },
   'add-item':       () => openAddModal(),
   'edit-item':      id => editMenuItem(id),
